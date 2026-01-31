@@ -1,21 +1,28 @@
 {{#if has_position}}
-  <div data-position-panel="1"
-       data-symbol="{{symbol}}"
-       data-qty="{{qty}}"
-       data-avg="{{avg}}">
-    <div><span class="text-muted">Qty:</span> <span class="fw-semibold">{{qty}}</span></div>
-    <div><span class="text-muted">Avg cost:</span> <span class="fw-semibold">{{avg}}</span></div>
-    <div><span class="text-muted">Last price:</span>
-      <span class="fw-semibold" data-role="pos-last-price">{{current_price}}</span>
+  <div class="border rounded p-3 bg-body" data-qty="{{qty}}" data-avg="{{avg_price_raw}}">
+    <div class="d-flex justify-content-between mb-2">
+      <div class="fw-semibold">Position</div>
+      <span class="badge text-bg-secondary">{{symbol}}</span>
     </div>
 
-    <div class="fw-semibold {{pnl_class}}" data-role="pos-pnl-row">
-      P/L:
-      <span data-role="pos-pnl-val">{{pnl}}</span>
-      (
-      <span data-role="pos-pnl-pct">{{pnl_pct}}</span>%)
+    <div class="small text-muted">Shares</div>
+    <div class="fw-semibold mb-2">{{qty}}</div>
+
+    <div class="row g-2 small">
+      <div class="col-6">
+        <div class="text-muted">Avg</div>
+        <div>${{avg_price}}</div>
+      </div>
+      <div class="col-6">
+        <div class="text-muted">Last</div>
+        <div>${{last_price}}</div>
+      </div>
+      <div class="col-12">
+        <div class="text-muted">P/L</div>
+        <div class="{{pnl_class}} fw-semibold">{{pnl}} ({{pnl_pct}}%)</div>
+      </div>
     </div>
   </div>
 {{else}}
-  <div class="text-muted small">You don’t own {{symbol}} yet.</div>
+  <div class="text-muted small">No position for this symbol.</div>
 {{/if}}

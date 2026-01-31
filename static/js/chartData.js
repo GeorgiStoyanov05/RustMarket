@@ -3,7 +3,7 @@
 // Works with SSR + HTMX (safe init/cleanup), dark theme, sane candle sizing
 
 (function () {
-	const RES_TO_SEC = { 1: 60, 5: 300, 15: 900, 60: 3600 };
+	const RES_TO_SEC = { 1: 60, 5: 300, 15: 900, 30: 1800, 60: 3600 };
 
 	function wsUrl(path) {
 		const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -233,7 +233,9 @@
 			};
 
 			ws.onerror = () => {
-				try { ws.close(); } catch {}
+				try {
+					ws.close();
+				} catch {}
 			};
 		}
 
@@ -241,7 +243,9 @@
 
 		wrap._destroy = () => {
 			if (reconnectTimer) clearTimeout(reconnectTimer);
-			try { ws && ws.close(); } catch {}
+			try {
+				ws && ws.close();
+			} catch {}
 			ro.disconnect();
 			chart.remove();
 			if (posUpdateRAF) cancelAnimationFrame(posUpdateRAF);

@@ -24,19 +24,15 @@
                 <div>
                   <div class="fw-semibold">
                     {{#if (eq condition "above")}}Above{{else}}Below{{/if}}
-                    {{target_price}}
+                    ${{target_price}}
                   </div>
-                  {{#if triggered}}
-                    <div class="small text-warning">Triggered at {{triggered_price}}</div>
-                  {{else}}
-                    <div class="small text-muted">Not triggered</div>
-                  {{/if}}
                 </div>
 
                 <button
                   class="btn btn-outline-danger btn-sm"
                   hx-post="/alerts/by-id/{{id}}/delete"
                   hx-swap="none"
+                  hx-on::after-request="if (event.detail.successful) htmx.trigger(document.body,'alertsUpdated')"
                 >
                   Delete
                 </button>

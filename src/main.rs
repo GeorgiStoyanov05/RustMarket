@@ -1,21 +1,18 @@
-use axum::{
-    routing::{get, post},
-    Router,
-};
+use axum::{routing::{get, post}, Router};
+use mongodb::Client;
 use std::net::SocketAddr;
 use tower_http::services::ServeDir;
 use tracing_subscriber;
 
-use mongodb::Client;
-
 mod auth;
 mod config;
 mod handlers;
+mod features;
 mod models;
 mod templates;
 mod finnhub;
 mod ws;
-mod stubs;
+mod pages;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -29,15 +26,13 @@ pub struct AppState {
 async fn main() {
     tracing_subscriber::fmt::init();
     dotenvy::dotenv().ok();
+
     let settings = config::load();
 
-    // Mongo connection
     let client = Client::with_uri_str(&settings.mongodb_uri)
         .await
         .expect("Failed to connect to MongoDB");
     let db = client.database(&settings.mongodb_db);
-
-    use axum::middleware::from_fn_with_state;
 
     let finnhub = finnhub::FinnhubClient::new(settings.finnhub_api_key.clone());
 
@@ -47,6 +42,8 @@ async fn main() {
         settings: settings.clone(),
         finnhub,
     };
+
+    use axum::middleware::from_fn_with_state;
 
     let app = Router::new()
         .route("/", get(handlers::home))
@@ -60,19 +57,22 @@ async fn main() {
         .route("/search/results", get(handlers::get_search_results))
         .route("/details/:symbol", get(handlers::get_details))
         .route("/details/:symbol/quote", get(handlers::get_details_quote))
-        // Real-time trades WS
+        .route("/positions/:symbol", get(features::get_position_panel))
+        .route("/trade/:symbol/buy", post(features::post_trade_buy))
+        .route("/trade/:symbol/sell", post(features::post_trade_sell))
+        .route("/alerts/:symbol/list", get(features::get_alerts_list))
+        .route("/alerts/:symbol", post(features::post_create_alert))
+        .route("/alerts/:symbol/:id/delete", post(features::post_delete_alert))
+        .route("/alerts/by-id/:id/delete", post(features::post_delete_alert_global))
+        .route("/portfolio", get(pages::get_portfolio_page))
+        .route("/portfolio/positions", get(pages::get_portfolio_positions))
+        .route("/alerts", get(pages::get_alerts_page))
+        .route("/alerts/list", get(pages::get_watchlist_alerts))
+        .route("/funds", get(pages::get_funds_page).post(pages::post_funds))
         .route("/ws/trades", get(ws::ws_trades))
-        // ---- STUBS to stop HTMX 404 spam (details sidebar) ----
-        .route("/alerts/:symbol/list", get(stubs::get_alerts_list))
-        .route("/alerts/:symbol", post(stubs::post_create_alert))
-        .route("/alerts/:symbol/:id/delete", post(stubs::post_delete_alert))
-        .route("/positions/:symbol", get(stubs::get_position_panel))
-        .route("/trade/:symbol/buy", post(stubs::post_trade_buy))
-        .route("/trade/:symbol/sell", post(stubs::post_trade_sell))
-        // Static
+
         .nest_service("/static", ServeDir::new("static"))
         .fallback(handlers::not_found)
-        // middleware that injects User into request extensions if logged in
         .layer(from_fn_with_state(state.clone(), auth::inject_current_user))
         .with_state(state);
 
