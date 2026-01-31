@@ -1,0 +1,33 @@
+{{#if alerts}}
+  <ul class="list-group list-group-flush">
+    {{#each alerts}}
+      <li class="list-group-item bg-transparent text-light d-flex justify-content-between align-items-start px-0">
+        <div>
+          <div class="fw-semibold">
+            {{#if (eq condition "above")}}Above{{else}}Below{{/if}}
+            {{target_price}}
+          </div>
+
+          {{#if triggered}}
+            <div class="small text-warning">
+              Triggered at {{triggered_price}}
+            </div>
+          {{else}}
+            <div class="small text-muted">
+              Not triggered
+            </div>
+          {{/if}}
+        </div>
+
+        <button class="btn btn-outline-danger btn-sm"
+                hx-post="/alerts/{{../symbol}}/{{id}}/delete"
+                hx-target="#alertsList"
+                hx-swap="innerHTML">
+          Delete
+        </button>
+      </li>
+    {{/each}}
+  </ul>
+{{else}}
+  <div class="text-muted small">No alerts for {{symbol}} yet.</div>
+{{/if}}

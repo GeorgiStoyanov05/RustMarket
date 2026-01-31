@@ -1,0 +1,98 @@
+<div class="d-flex align-items-center justify-content-center flex-grow-1" id="registerBox">
+  <div class="row justify-content-center w-100">
+    <div class="col-12 col-md-6 col-lg-4">
+
+      <h2 class="mb-3">Register</h2>
+
+      {{#if errors._form}}
+        <div class="alert alert-danger">{{errors._form}}</div>
+      {{/if}}
+
+      <form
+        action="/register"
+        hx-post="/register"
+        hx-target="#registerBox"
+        hx-swap="outerHTML"
+        novalidate
+      >
+        <div class="mb-3">
+          <label for="username" class="form-label">Username</label>
+          <input
+            type="text"
+            class="form-control {{#if errors.username}}is-invalid{{/if}}"
+            id="username"
+            name="username"
+            value="{{values.username}}"
+            placeholder="yourname"
+            required
+          />
+          {{#if errors.username}}
+            <div class="invalid-feedback">{{errors.username}}</div>
+          {{/if}}
+        </div>
+
+        <div class="mb-3">
+          <label for="email" class="form-label">Email</label>
+          <input
+            type="text"
+            class="form-control {{#if errors.email}}is-invalid{{/if}}"
+            id="email"
+            name="email"
+            value="{{values.email}}"
+            placeholder="you@domain.com"
+            required
+          />
+          {{#if errors.email}}
+            <div class="invalid-feedback">{{errors.email}}</div>
+          {{/if}}
+        </div>
+
+        <div class="mb-3">
+          <label for="password" class="form-label">Password</label>
+          <input
+            type="password"
+            class="form-control {{#if errors.password}}is-invalid{{/if}}"
+            id="password"
+            name="password"
+            placeholder="Enter password..."
+            required
+          />
+          {{#if errors.password}}
+            <div class="invalid-feedback">{{errors.password}}</div>
+          {{/if}}
+        </div>
+
+        <div class="mb-3">
+  <label for="rePassword" class="form-label">Repeat Password</label>
+  <input
+    type="password"
+    class="form-control {{#if errors.rePassword}}is-invalid{{/if}}"
+    id="rePassword"
+    name="rePassword"
+    placeholder="Repeat password..."
+    required
+  />
+  {{#if errors.rePassword}}
+    <div class="invalid-feedback">{{errors.rePassword}}</div>
+  {{/if}}
+</div>
+
+
+        <div class="mb-3 form-check">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="rememberMe"
+            name="rememberMe"
+            value="on"
+            {{#if values.rememberMe}}checked{{/if}}
+          />
+          <label class="form-check-label" for="rememberMe">Remember me</label>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">Create account</button>
+      </form>
+
+    </div>
+  </div>
+</div>

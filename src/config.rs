@@ -6,9 +6,11 @@ pub struct Settings {
     pub mongodb_db: String,
     pub host: String,
     pub port: u16,
-
+    pub cookie_secure: bool,
+    pub jwt_ttl_days: i64,
     pub jwt_secret: String,
     pub jwt_cookie_name: String,
+    pub finnhub_api_key: String,
 }
 
 
@@ -32,7 +34,16 @@ pub fn load() -> Settings {
 
     let jwt_secret = env::var("JWT_SECRET").unwrap_or_else(|_| "change-me-dev-secret".to_string());
     let jwt_cookie_name = env::var("JWT_COOKIE_NAME").unwrap_or_else(|_| "auth".to_string());
+    let cookie_secure = env::var("COOKIE_SECURE")
+        .ok()
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
 
+    let jwt_ttl_days = env::var("JWT_TTL_DAYS")
+        .ok()
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(7);
+    let finnhub_api_key = env::var("FINNHUB_API_KEY").unwrap_or_default();
     Settings {
         mongodb_uri,
         mongodb_db,
@@ -40,5 +51,8 @@ pub fn load() -> Settings {
         port,
         jwt_secret,
         jwt_cookie_name,
+        cookie_secure,
+        jwt_ttl_days,
+        finnhub_api_key
     }
 }

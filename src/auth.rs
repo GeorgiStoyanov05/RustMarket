@@ -8,7 +8,7 @@ use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use mongodb::bson::{doc, oid::ObjectId};
 use serde::{Deserialize, Serialize};
 
-use crate::{models::User, AppState};
+use crate::{models::{User, CurrentUser}, AppState};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
@@ -56,7 +56,7 @@ pub async fn inject_current_user(
 
                 if let Ok(Some(user)) = users.find_one(doc! { "_id": user_id }, None).await {
                     // Store user in request extensions so handlers can access it
-                    req.extensions_mut().insert(user);
+                    req.extensions_mut().insert(CurrentUser::from(user));
                 }
             }
         }

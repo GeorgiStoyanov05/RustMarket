@@ -1,0 +1,31 @@
+<div class="container-fluid d-flex flex-grow-1 p-0">
+  <div class="row g-0 flex-grow-1 w-100">
+    <nav class="col-auto border-end p-2 h-100">
+      <ul class="list-unstyled d-flex flex-column gap-3 m-0">
+        <li>
+          <a class="text-white text-decoration-none d-block py-3 px-3"
+             href="/settings/email"
+             hx-get="/settings/email"
+             hx-target="#rightPane"
+             hx-swap="innerHTML"
+             hx-push-url="true">
+            Change Email
+          </a>
+        </li>
+
+        <li>
+          <a class="text-white text-decoration-none d-block py-3 px-3"
+             href="/settings/password"
+             hx-get="/settings/password"
+             hx-target="#rightPane"
+             hx-swap="innerHTML"
+             hx-push-url="true">
+            Change Password
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <section class="col p-4 h-100 overflow-auto" id="rightPane"></section>
+  </div>
+</div>

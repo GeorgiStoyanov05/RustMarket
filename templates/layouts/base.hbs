@@ -1,22 +1,61 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>{{title}}</title>
+<html lang="en" data-bs-theme="dark">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+		/>
+		<link rel="stylesheet" href="/static/css/app.css" />
+		<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+		<title>GoMarket</title>
+	</head>
+	<body class="min-vh-100 d-flex flex-column">
+		{{> navbar}}
 
-    <link rel="stylesheet" href="/static/css/app.css" />
+		<main id="app" class="flex-grow-1 d-flex p-0">
+			{{{body}}}
+		</main>
 
-    <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-  </head>
-  <body>
-    {{> navbar}}
+		{{#if open_funds_modal}}
+		<div
+			hx-get="/funds"
+			hx-trigger="load"
+			hx-target="#fundsModalContent"
+			hx-swap="innerHTML"
+		></div>
+		{{/if}}
 
-    <main id="main">
-      {{{body}}}
-    </main>
+		<div
+			class="modal fade"
+			id="staticBackdrop"
+			data-bs-backdrop="static"
+			data-bs-keyboard="false"
+			tabindex="-1"
+			aria-labelledby="staticBackdropLabel"
+			aria-hidden="true"
+		>
+			<!-- HTMX will swap the dialog/content in here -->
+			<div
+				id="fundsModalContent"
+				class="modal-dialog modal-dialog-centered"
+				hx-on::after-swap="bootstrap.Modal.getOrCreateInstance(document.getElementById('staticBackdrop')).show()"
+			></div>
+		</div>
 
-    {{> footer}}
-  </body>
+		{{> footer}}
+
+		<script
+			src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+			integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+			crossorigin="anonymous"
+		></script>
+		<script
+			defer
+			src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"
+		></script>
+		<script defer src="/static/js/chartData.js"></script>
+		<script defer src="/static/js/homeWidgets.js"></script>
+	</body>
 </html>

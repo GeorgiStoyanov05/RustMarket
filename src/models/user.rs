@@ -7,7 +7,24 @@ pub struct User {
     pub id: ObjectId,
 
     pub email: String,
+    pub username: String,
 
-    #[serde(default)]
-    pub username: Option<String>,
+    pub password_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CurrentUser {
+    pub id: ObjectId,
+    pub email: String,
+    pub username: String,
+}
+
+impl From<User> for CurrentUser {
+    fn from(u: User) -> Self {
+        Self {
+            id: u.id,
+            email: u.email,
+            username: u.username,
+        }
+    }
 }

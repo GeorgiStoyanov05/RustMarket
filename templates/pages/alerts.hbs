@@ -1,0 +1,10 @@
+<div class="container py-4">
+  <h1 class="mb-4">Alerts</h1>
+
+  <div
+    id="watchlistAlerts"
+    hx-get="/alerts/list"
+    hx-trigger="load, alertsUpdated from:body, every 10s"
+    hx-swap="innerHTML"
+  ></div>
+</div>

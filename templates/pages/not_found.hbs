@@ -1,4 +1,32 @@
-<section class="card">
-  <h1>404</h1>
-  <p>Page not found.</p>
-</section>
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4 p-md-5 text-center">
+          <div class="display-1 fw-bold mb-2">404</div>
+          <h2 class="h4 mb-3">Something went wrong</h2>
+
+          {{#if message}}
+            <div class="alert alert-danger text-start mb-4" role="alert">
+              <div class="fw-semibold mb-1">Reason</div>
+              <div>{{message}}</div>
+            </div>
+          {{else}}
+            <p class="text-muted mb-4">
+              The page you’re looking for doesn’t exist or you don’t have access.
+            </p>
+          {{/if}}
+
+          <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+            <a href="/" hx-get="/" hx-target="#app" hx-swap="innerHTML" hx-push-url="true" class="btn btn-primary px-4">Go Home</a>
+            <a href="/login" hx-get="/login" hx-target="#app" hx-swap="innerHTML" hx-push-url="true" class="btn btn-outline-secondary px-4">Login</a>
+          </div>
+
+          <p class="text-muted small mt-4 mb-0">
+            If you think this is a bug, try logging in again.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,14 +1,51 @@
-<section class="card">
-  <h1>Home</h1>
-  <p>This is the home fragment.</p>
+<div class="container-fluid py-2 px-2" data-home-page="1">
+	<div class="row g-1">
+		<!-- Top Left: Market Overview -->
+		<div class="col-12 col-xl-4">
+			<div class="card border-0 shadow-sm h-100 bg-dark text-light">
+				<div class="card-header bg-transparent border-0 fw-semibold">
+					Market Overview
+				</div>
+				<div class="card-body p-2 pt-0">
+					<div id="tv-market-overview" class="tv-widget-slot"></div>
+				</div>
+			</div>
+		</div>
 
-  <button
-    class="btn"
-    hx-get="/"
-    hx-headers='{"HX-Request":"true"}'
-    hx-target="#main"
-    hx-swap="innerHTML"
-  >
-    Reload fragment via HTMX
-  </button>
-</section>
+		<!-- Top Right: Heatmap -->
+		<div class="col-12 col-xl-8">
+			<div class="card border-0 shadow-sm h-100 bg-dark text-light">
+				<div class="card-header bg-transparent border-0 fw-semibold">
+					Market Heatmap
+				</div>
+				<div class="card-body p-2 pt-0">
+					<div id="tv-heatmap" class="tv-widget-slot"></div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Bottom Left: Top Stories -->
+		<div class="col-12 col-xl-4">
+			<div class="card border-0 shadow-sm h-100 bg-dark text-light">
+				<div class="card-header bg-transparent border-0 fw-semibold">
+					Top Stories
+				</div>
+				<div class="card-body p-2 pt-0">
+					<div id="tv-top-stories" class="tv-widget-slot"></div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Bottom Right: Screener / Quotes -->
+		<div class="col-12 col-xl-8">
+			<div class="card border-0 shadow-sm h-100 bg-dark text-light">
+				<div class="card-header bg-transparent border-0 fw-semibold">
+					Market Screener
+				</div>
+				<div class="card-body p-2 pt-0">
+					<div id="tv-screener" class="tv-widget-slot"></div>
+				</div>
+				</div>
+		</div>
+	</div>
+</div>

@@ -1,0 +1,21 @@
+{{#if has_position}}
+  <div data-position-panel="1"
+       data-symbol="{{symbol}}"
+       data-qty="{{qty}}"
+       data-avg="{{avg}}">
+    <div><span class="text-muted">Qty:</span> <span class="fw-semibold">{{qty}}</span></div>
+    <div><span class="text-muted">Avg cost:</span> <span class="fw-semibold">{{avg}}</span></div>
+    <div><span class="text-muted">Last price:</span>
+      <span class="fw-semibold" data-role="pos-last-price">{{current_price}}</span>
+    </div>
+
+    <div class="fw-semibold {{pnl_class}}" data-role="pos-pnl-row">
+      P/L:
+      <span data-role="pos-pnl-val">{{pnl}}</span>
+      (
+      <span data-role="pos-pnl-pct">{{pnl_pct}}</span>%)
+    </div>
+  </div>
+{{else}}
+  <div class="text-muted small">You don’t own {{symbol}} yet.</div>
+{{/if}}

@@ -1,0 +1,31 @@
+<div class="container py-4">
+  <h1 class="mb-4">Search</h1>
+
+  <div class="card bg-body-tertiary border-0 shadow-sm">
+    <div class="card-body">
+      <label for="searchQ" class="form-label">Stock name or symbol</label>
+
+      <input
+        id="searchQ"
+        name="q"
+        class="form-control"
+        placeholder="e.g. AAPL, Apple, TSLA..."
+        autocomplete="off"
+        hx-get="/search/results"
+        hx-trigger="keyup changed delay:300ms"
+        hx-target="#searchResults"
+        hx-swap="innerHTML"
+        hx-indicator="#searchSpinner"
+      />
+
+      <div class="mt-2 d-flex align-items-center gap-2">
+        <div id="searchSpinner" class="htmx-indicator spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+        <div class="text-muted small">Results update as you type.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-3" id="searchResults">
+    <div class="text-muted">Start typing to search…</div>
+  </div>
+</div>

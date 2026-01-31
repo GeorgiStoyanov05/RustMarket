@@ -1,0 +1,26 @@
+{{#if error}}
+  <div class="alert alert-danger">{{error}}</div>
+{{else}}
+  <div class="card p-3">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <div class="text-muted">Current</div>
+        <div class="fs-3 fw-bold">{{quote.c}}</div>
+      </div>
+
+      <div class="text-end">
+        <div class="text-muted">Change</div>
+        <div class="fw-bold">{{quote.d}} ({{quote.dp}}%)</div>
+      </div>
+    </div>
+
+    <hr/>
+
+    <div class="row text-muted small">
+      <div class="col-6 col-md-3">Open: <span class="text-dark">{{quote.o}}</span></div>
+      <div class="col-6 col-md-3">High: <span class="text-dark">{{quote.h}}</span></div>
+      <div class="col-6 col-md-3">Low: <span class="text-dark">{{quote.l}}</span></div>
+      <div class="col-6 col-md-3">Prev close: <span class="text-dark">{{quote.pc}}</span></div>
+    </div>
+  </div>
+{{/if}}
