@@ -20,7 +20,7 @@
 
 		{{#if open_funds_modal}}
 		<div
-			hx-get="/funds"
+			hx-get="/funds/modal"
 			hx-trigger="load"
 			hx-target="#fundsModalContent"
 			hx-swap="innerHTML"
@@ -36,7 +36,6 @@
 			aria-labelledby="staticBackdropLabel"
 			aria-hidden="true"
 		>
-			<!-- HTMX will swap the dialog/content in here -->
 			<div
 				id="fundsModalContent"
 				class="modal-dialog modal-dialog-centered"
@@ -51,6 +50,7 @@
 			integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
 			crossorigin="anonymous"
 		></script>
+		<script defer src="/static/js/app.js"></script>
 		<script
 			defer
 			src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"

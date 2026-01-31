@@ -1,0 +1,9 @@
+<span
+	id="cashBadge"
+	class="badge rounded-pill text-bg-success ms-2"
+	hx-get="/cash"
+	hx-trigger="load, cashUpdated from:body"
+	hx-swap="outerHTML"
+>
+	${{cash}}
+</span>

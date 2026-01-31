@@ -23,90 +23,63 @@
 		</button>
 
 		<div class="collapse navbar-collapse w-100" id="navbarNav">
-			<!-- LEFT (keep empty like GoMarket) -->
 			<ul class="navbar-nav me-auto mb-2 mb-lg-0"></ul>
 
 			{{#if is_logged_in}}
 			<ul class="navbar-nav mx-auto mb-2 mb-lg-0">
 				<li class="nav-item">
-					<a
-						class="nav-link"
-						href="/search"
-						hx-get="/search"
-						hx-target="#app"
-						hx-swap="innerHTML"
-						hx-push-url="true"
-						>Search</a
-					>
+					<a class="nav-link" href="/search" hx-get="/search" hx-target="#app" hx-swap="innerHTML" hx-push-url="true">Search</a>
 				</li>
 				<li class="nav-item">
-					<a
-						class="nav-link"
-						href="/alerts"
-						hx-get="/alerts"
-						hx-target="#app"
-						hx-swap="innerHTML"
-						hx-push-url="true"
-						>Alerts</a
-					>
+					<a class="nav-link" href="/alerts" hx-get="/alerts" hx-target="#app" hx-swap="innerHTML" hx-push-url="true">Alerts</a>
 				</li>
 				<li class="nav-item">
-					<a
-						class="nav-link"
-						href="/portfolio"
-						hx-get="/portfolio"
-						hx-target="#app"
-						hx-swap="innerHTML"
-						hx-push-url="true"
-						>Portfolio</a
-					>
+					<a class="nav-link" href="/portfolio" hx-get="/portfolio" hx-target="#app" hx-swap="innerHTML" hx-push-url="true">Portfolio</a>
 				</li>
 			</ul>
 
 			<ul class="navbar-nav ms-auto mb-2 mb-lg-0">
 				<li class="nav-item dropdown">
 					<a
-						class="nav-link dropdown-toggle"
+						class="nav-link dropdown-toggle d-flex align-items-center"
 						href="#"
 						role="button"
 						data-bs-toggle="dropdown"
 						aria-expanded="false"
 					>
-						{{user.first_name}}
+						<span class="me-1">{{user.username}}</span>
+						<span
+							id="cashBadge"
+							class="badge rounded-pill text-bg-success ms-2"
+							hx-get="/cash"
+							hx-trigger="load, cashUpdated from:body"
+							hx-swap="outerHTML"
+						>
+							$--
+						</span>
 					</a>
 					<ul class="dropdown-menu dropdown-menu-end">
 						<li>
 							<a
 								class="dropdown-item"
 								href="/funds"
-								hx-get="/funds"
+								hx-get="/funds/modal"
 								hx-target="#fundsModalContent"
 								hx-swap="innerHTML"
-								>Deposit Funds</a
 							>
+								Deposit Funds
+							</a>
 						</li>
 						<li>
-							<a
-								class="dropdown-item"
-								href="/settings"
-								hx-get="/settings"
-								hx-target="#app"
-								hx-swap="innerHTML"
-								hx-push-url="true"
-								>Settings</a
-							>
+							<a class="dropdown-item" href="/settings" hx-get="/settings" hx-target="#app" hx-swap="innerHTML" hx-push-url="true">
+								Settings
+							</a>
 						</li>
-
+						<li><hr class="dropdown-divider" /></li>
 						<li>
-							<a
-								class="dropdown-item"
-								href="/logout"
-								hx-get="/logout"
-								hx-target="#app"
-								hx-swap="innerHTML"
-								hx-push-url="true"
-								>Logout</a
-							>
+							<a class="dropdown-item" href="/logout" hx-get="/logout" hx-target="#app" hx-swap="innerHTML" hx-push-url="true">
+								Logout
+							</a>
 						</li>
 					</ul>
 				</li>
@@ -114,26 +87,10 @@
 			{{else}}
 			<ul class="navbar-nav ms-auto mb-2 mb-lg-0">
 				<li class="nav-item">
-					<a
-						class="nav-link"
-						href="/login"
-						hx-get="/login"
-						hx-target="#app"
-						hx-swap="innerHTML"
-						hx-push-url="true"
-						>Login</a
-					>
+					<a class="nav-link" href="/login" hx-get="/login" hx-target="#app" hx-swap="innerHTML" hx-push-url="true">Login</a>
 				</li>
 				<li class="nav-item">
-					<a
-						class="nav-link"
-						href="/register"
-						hx-get="/register"
-						hx-target="#app"
-						hx-swap="innerHTML"
-						hx-push-url="true"
-						>Register</a
-					>
+					<a class="nav-link" href="/register" hx-get="/register" hx-target="#app" hx-swap="innerHTML" hx-push-url="true">Register</a>
 				</li>
 			</ul>
 			{{/if}}

@@ -1,94 +1,60 @@
-use handlebars::{Handlebars, JsonValue, handlebars_helper};
+use handlebars::{handlebars_helper, Handlebars, JsonValue};
+use std::path::Path;
 use std::sync::Arc;
 
 pub type Hbs = Arc<Handlebars<'static>>;
 
+fn register_file(hb: &mut Handlebars<'static>, name: &str, path: &str) {
+    if Path::new(path).exists() {
+        hb.register_template_file(name, path)
+            .unwrap_or_else(|e| panic!("Failed to register {name} from {path}: {e}"));
+    } else {
+        eprintln!("[templates] WARNING missing file: {path} (skipping register: {name})");
+    }
+}
+
 pub fn build_handlebars() -> Hbs {
     let mut hb = Handlebars::new();
 
-    // Helpers
-    // NOTE: handlebars_helper! macro can't parse types like serde_json::value::Value (the :: breaks it).
     handlebars_helper!(eq: |a: JsonValue, b: JsonValue| a == b);
     hb.register_helper("eq", Box::new(eq));
 
-    // Layout + pages
-    hb.register_template_file("layouts/base", "templates/layouts/base.hbs")
-        .expect("template layouts/base");
+    register_file(&mut hb, "layouts/base", "templates/layouts/base.hbs");
 
-    hb.register_template_file("pages/home", "templates/pages/home.hbs")
-        .expect("template pages/home");
-    hb.register_template_file("pages/not_found", "templates/pages/not_found.hbs")
-        .expect("template pages/not_found");
-    hb.register_template_file("pages/login", "templates/pages/login.hbs")
-        .expect("template pages/login");
-    hb.register_template_file("pages/register", "templates/pages/register.hbs")
-        .expect("template pages/register");
-    hb.register_template_file("pages/search", "templates/pages/search.hbs")
-        .expect("template pages/search");
-    hb.register_template_file("pages/details", "templates/pages/details.hbs")
-        .expect("template pages/details");
+    register_file(&mut hb, "pages/home", "templates/pages/home.hbs");
+    register_file(&mut hb, "pages/not_found", "templates/pages/not_found.hbs");
+    register_file(&mut hb, "pages/login", "templates/pages/login.hbs");
+    register_file(&mut hb, "pages/register", "templates/pages/register.hbs");
+    register_file(&mut hb, "pages/search", "templates/pages/search.hbs");
+    register_file(&mut hb, "pages/details", "templates/pages/details.hbs");
+    register_file(&mut hb, "pages/portfolio", "templates/pages/portfolio.hbs");
+    register_file(&mut hb, "pages/alerts", "templates/pages/alerts.hbs");
+    register_file(&mut hb, "pages/funds", "templates/pages/funds.hbs");
+    register_file(&mut hb, "pages/settings", "templates/pages/settings.hbs");
 
-    // NEW pages
-    hb.register_template_file("pages/portfolio", "templates/pages/portfolio.hbs")
-        .expect("template pages/portfolio");
-    hb.register_template_file("pages/alerts", "templates/pages/alerts.hbs")
-        .expect("template pages/alerts");
-    hb.register_template_file("pages/settings", "templates/pages/settings.hbs")
-        .expect("template pages/settings");
+    register_file(&mut hb, "partials/search_results", "templates/partials/search_results.hbs");
+    register_file(&mut hb, "partials/quote", "templates/partials/quote.hbs");
+    register_file(&mut hb, "partials/alerts_list", "templates/partials/alerts_list.hbs");
+    register_file(&mut hb, "partials/watchlist_alerts", "templates/partials/watchlist_alerts.hbs");
+    register_file(&mut hb, "partials/position_panel", "templates/partials/position_panel.hbs");
+    register_file(&mut hb, "partials/portfolio_positions", "templates/partials/portfolio_positions.hbs");
 
-    // Partial endpoints
-    hb.register_template_file(
-        "partials/search_results",
-        "templates/partials/search_results.hbs",
-    )
-    .expect("template partials/search_results");
+    // NEW
+    register_file(&mut hb, "partials/funds_modal", "templates/partials/funds_modal.hbs");
+    register_file(&mut hb, "partials/cash_badge", "templates/partials/cash_badge.hbs");
 
-    hb.register_template_file("partials/alerts_list", "templates/partials/alerts_list.hbs")
-        .expect("template partials/alerts_list");
-
-    hb.register_template_file(
-        "partials/watchlist_alerts",
-        "templates/partials/watchlist_alerts.hbs",
-    )
-    .expect("template partials/watchlist_alerts");
-
-    hb.register_template_file(
-        "partials/position_panel",
-        "templates/partials/position_panel.hbs",
-    )
-    .expect("template partials/position_panel");
-
-    hb.register_template_file(
-        "partials/portfolio_positions",
-        "templates/partials/portfolio_positions.hbs",
-    )
-    .expect("template partials/portfolio_positions");
-    hb.register_template_file("pages/portfolio", "templates/pages/portfolio.hbs")
-        .expect("template pages/portfolio");
-    hb.register_template_file("pages/alerts", "templates/pages/alerts.hbs")
-        .expect("template pages/alerts");
-    hb.register_template_file("pages/funds", "templates/pages/funds.hbs")
-        .expect("template pages/funds");
-
-    hb.register_template_file(
-        "partials/portfolio_positions",
-        "templates/partials/portfolio_positions.hbs",
-    )
-    .expect("template partials/portfolio_positions");
-    hb.register_template_file(
-        "partials/watchlist_alerts",
-        "templates/partials/watchlist_alerts.hbs",
-    )
-    .expect("template partials/watchlist_alerts");
-    let navbar =
-        std::fs::read_to_string("templates/partials/navbar.hbs").expect("partials/navbar.hbs");
-    hb.register_partial("navbar", navbar)
-        .expect("register navbar partial");
-
-    let footer =
-        std::fs::read_to_string("templates/partials/footer.hbs").expect("partials/footer.hbs");
-    hb.register_partial("footer", footer)
-        .expect("register footer partial");
+    if Path::new("templates/partials/navbar.hbs").exists() {
+        let navbar = std::fs::read_to_string("templates/partials/navbar.hbs")
+            .expect("partials/navbar.hbs");
+        hb.register_partial("navbar", navbar)
+            .expect("register navbar partial");
+    }
+    if Path::new("templates/partials/footer.hbs").exists() {
+        let footer = std::fs::read_to_string("templates/partials/footer.hbs")
+            .expect("partials/footer.hbs");
+        hb.register_partial("footer", footer)
+            .expect("register footer partial");
+    }
 
     Arc::new(hb)
 }

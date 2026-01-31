@@ -69,8 +69,9 @@ async fn main() {
         .route("/alerts", get(pages::get_alerts_page))
         .route("/alerts/list", get(pages::get_watchlist_alerts))
         .route("/funds", get(pages::get_funds_page).post(pages::post_funds))
+        .route("/funds/modal", get(pages::get_funds_modal))
+        .route("/cash", get(pages::get_cash_badge))
         .route("/ws/trades", get(ws::ws_trades))
-
         .nest_service("/static", ServeDir::new("static"))
         .fallback(handlers::not_found)
         .layer(from_fn_with_state(state.clone(), auth::inject_current_user))

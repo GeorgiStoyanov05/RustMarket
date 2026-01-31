@@ -1,6 +1,6 @@
 use axum::{
     extract::{Extension, State},
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, HeaderValue, StatusCode},
     response::{Html, IntoResponse, Response},
     Form,
 };
@@ -25,8 +25,10 @@ fn is_htmx(headers: &HeaderMap) -> bool {
 }
 
 fn render_page(state: &AppState, tpl: &str, ctx: serde_json::Value) -> String {
-    // NOTE: your base layout may wrap differently; adapt if your handlers use a "layouts/base" render helper
-    state.hbs.render(tpl, &ctx).unwrap_or_else(|e| format!("template error: {e}"))
+    state
+        .hbs
+        .render(tpl, &ctx)
+        .unwrap_or_else(|e| format!("template error: {e}"))
 }
 
 fn fmt2(x: f64) -> String {
@@ -38,8 +40,15 @@ async fn get_or_create_account(state: &AppState, user_id: ObjectId) -> Result<Ac
     if let Ok(Some(acc)) = accounts.find_one(doc! { "_id": user_id }, None).await {
         return Ok(acc);
     }
-    let acc = Account { id: user_id, cash: 10_000.0, updated_at: Utc::now().timestamp() };
-    accounts.insert_one(&acc, None).await.map_err(|e| e.to_string())?;
+    let acc = Account {
+        id: user_id,
+        cash: 10_000.0,
+        updated_at: Utc::now().timestamp(),
+    };
+    accounts
+        .insert_one(&acc, None)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(acc)
 }
 
@@ -55,8 +64,10 @@ pub async fn get_alerts_page(State(state): State<AppState>) -> impl IntoResponse
     (StatusCode::OK, Html(html))
 }
 
-pub async fn get_funds_page(State(state): State<AppState>, user: Option<Extension<CurrentUser>>) -> impl IntoResponse {
-    // ensure account exists so depositing never fails
+pub async fn get_funds_page(
+    State(state): State<AppState>,
+    user: Option<Extension<CurrentUser>>,
+) -> impl IntoResponse {
     if let Some(Extension(u)) = user {
         let _ = get_or_create_account(&state, u.id).await;
     }
@@ -64,9 +75,43 @@ pub async fn get_funds_page(State(state): State<AppState>, user: Option<Extensio
     (StatusCode::OK, Html(html))
 }
 
+// GET /funds/modal
+pub async fn get_funds_modal(
+    State(state): State<AppState>,
+    user: Option<Extension<CurrentUser>>,
+) -> impl IntoResponse {
+    if let Some(Extension(u)) = user {
+        let _ = get_or_create_account(&state, u.id).await;
+    }
+
+    let html = render_page(&state, "partials/funds_modal", json!({}));
+    (StatusCode::OK, Html(html))
+}
+
+// GET /cash
+pub async fn get_cash_badge(
+    State(state): State<AppState>,
+    user: Option<Extension<CurrentUser>>,
+) -> impl IntoResponse {
+    let Some(Extension(u)) = user else {
+        return (StatusCode::OK, Html("".to_string()));
+    };
+
+    let acc = match get_or_create_account(&state, u.id).await {
+        Ok(a) => a,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))),
+    };
+
+    let html = render_page(
+        &state,
+        "partials/cash_badge",
+        json!({ "cash": fmt2(acc.cash) }),
+    );
+    (StatusCode::OK, Html(html))
+}
+
 // ---------------- Partials ----------------
 
-// GET /portfolio/positions
 pub async fn get_portfolio_positions(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -124,7 +169,6 @@ pub async fn get_portfolio_positions(
     (StatusCode::OK, Html(html)).into_response()
 }
 
-// GET /alerts/list
 pub async fn get_watchlist_alerts(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -210,6 +254,17 @@ pub async fn post_funds(
         return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response();
     }
 
-    let msg = format!(r#"<div class="alert alert-success">Deposited <b>${}</b>. New cash: <b>${}</b></div>"#, fmt2(form.amount), fmt2(acc.cash));
-    (StatusCode::OK, Html(msg)).into_response()
+    let msg = format!(
+        r#"<div class="alert alert-success mb-0">Deposited <b>${}</b>. New cash: <b>${}</b></div>"#,
+        fmt2(form.amount),
+        fmt2(acc.cash)
+    );
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "HX-Trigger",
+        HeaderValue::from_static(r#"{"cashUpdated":true,"closeFundsModal":true}"#),
+    );
+
+    (StatusCode::OK, headers, Html(msg)).into_response()
 }
