@@ -1,0 +1,14 @@
+<section class="card">
+  <h1>Home</h1>
+  <p>This is the home fragment.</p>
+
+  <button
+    class="btn"
+    hx-get="/"
+    hx-headers='{"HX-Request":"true"}'
+    hx-target="#main"
+    hx-swap="innerHTML"
+  >
+    Reload fragment via HTMX
+  </button>
+</section>
