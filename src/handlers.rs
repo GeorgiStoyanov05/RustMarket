@@ -535,35 +535,71 @@ pub async fn get_search_results(
 ) -> axum::response::Response {
     let q = query.q.unwrap_or_default().trim().to_string();
 
+    // GoMarket behavior: empty query => show "Start typing..."
     if q.is_empty() {
-        let html = state.hbs.render("partials/search_results", &json!({
-            "items": [],
-            "error": serde_json::Value::Null
-        })).unwrap_or_else(|e| format!("template error: {e}"));
+        let html = state
+            .hbs
+            .render(
+                "partials/search_results",
+                &json!({
+                    "query": "",
+                    "results": serde_json::Value::Null,
+                    "error": serde_json::Value::Null
+                }),
+            )
+            .unwrap_or_else(|e| format!("template error: {e}"));
         return (StatusCode::OK, Html(html)).into_response();
     }
 
     let data = match state.finnhub.search(&q).await {
         Ok(resp) => {
-            let items: Vec<_> = resp.result.into_iter().take(20).map(|it| {
-                json!({
-                    "symbol": it.symbol,
-                    "display_symbol": it.display_symbol,
-                    "description": it.description,
-                    "kind": it.kind
+            // GoMarket behavior: clean empty symbols + limit 10
+            let mut results: Vec<_> = resp
+                .result
+                .into_iter()
+                .filter(|it| !it.symbol.trim().is_empty())
+                .take(10)
+                .map(|it| {
+                    json!({
+                        "symbol": it.symbol,
+                        "display_symbol": it.display_symbol,
+                        "description": it.description,
+                        "type": it.kind
+                    })
                 })
-            }).collect();
+                .collect();
 
-            json!({ "items": items, "error": serde_json::Value::Null })
+            // If nothing found, send results=null so template hits "No results"
+            let results_val = if results.is_empty() {
+                serde_json::Value::Null
+            } else {
+                serde_json::Value::Array(results)
+            };
+
+            json!({
+                "query": q,
+                "results": results_val,
+                "error": serde_json::Value::Null
+            })
         }
-        Err(err) => json!({ "items": [], "error": err }),
+        Err(_err) => {
+            // GoMarket: generic message (don’t expose raw Finnhub errors)
+            json!({
+                "query": q,
+                "results": serde_json::Value::Null,
+                "error": "Search unavailable right now."
+            })
+        }
     };
 
-    let html = state.hbs.render("partials/search_results", &data)
+    let html = state
+        .hbs
+        .render("partials/search_results", &data)
         .unwrap_or_else(|e| format!("template error: {e}"));
 
     (StatusCode::OK, Html(html)).into_response()
 }
+
 
 pub async fn get_details(
     State(state): State<AppState>,

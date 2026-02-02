@@ -103,6 +103,7 @@ async fn main() {
         .route("/funds/modal", get(pages::get_funds_modal))
         .route("/cash", get(pages::get_cash_badge))
         .route("/ws/trades", get(ws::ws_trades))
+        .route("/ws/trades_multi", get(ws::ws_trades_multi))
         .route("/settings", get(handlers::get_settings))
         .route(
             "/settings/email",

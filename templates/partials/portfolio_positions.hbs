@@ -1,7 +1,13 @@
 {{#if groups}}
   <div class="d-flex flex-column gap-3">
     {{#each groups}}
-      <div id="pos-{{symbol}}" class="card bg-dark border-secondary position-card">
+      <div
+        id="pos-{{symbol}}"
+        class="card bg-dark border-secondary position-card"
+        data-symbol="{{symbol}}"
+        data-qty="{{qty}}"
+        data-avg="{{avg_raw}}"
+      >
         <div class="card-header d-flex justify-content-between align-items-center">
           <div class="fw-semibold">{{symbol}}</div>
 
@@ -26,40 +32,54 @@
             <div class="fw-semibold">${{avg}}</div>
 
             <div class="ms-3 text-muted">Last:</div>
-            <div class="fw-semibold">${{current_price}}</div>
+            <div class="fw-semibold js-last">${{current_price}}</div>
 
-            <div class="ms-3 fw-semibold {{pnl_class}}">
-              P/L: {{pnl}} ({{pnl_pct}}%)
+            <div class="ms-3 fw-semibold js-pnl {{pnl_class}}">
+              P/L:
+              <span class="js-pnl-val">{{pnl}}</span>
+              (<span class="js-pnl-pct">{{pnl_pct}}</span>%)
             </div>
           </div>
 
           <div class="row g-2">
             <div class="col-12 col-md-6">
-              <label class="form-label">Buy qty</label>
-              <input id="buyQty-{{symbol}}" name="qty" class="form-control form-control-sm" type="number" step="1" min="1" />
-              <button
-                class="btn btn-success btn-sm mt-2 w-100"
+              <form
                 hx-post="/trade/{{symbol}}/buy"
-                hx-include="#buyQty-{{symbol}}"
                 hx-target="#portfolioMsg"
                 hx-swap="innerHTML"
               >
-                Buy
-              </button>
+                <label class="form-label">Buy qty</label>
+                <input
+                  name="qty"
+                  class="form-control form-control-sm"
+                  type="number"
+                  step="1"
+                  min="1"
+                />
+                <button type="submit" class="btn btn-success btn-sm mt-2 w-100">
+                  Buy
+                </button>
+              </form>
             </div>
 
             <div class="col-12 col-md-6">
-              <label class="form-label">Sell qty</label>
-              <input id="sellQty-{{symbol}}" name="qty" class="form-control form-control-sm" type="number" step="1" min="1" />
-              <button
-                class="btn btn-danger btn-sm mt-2 w-100"
+              <form
                 hx-post="/trade/{{symbol}}/sell"
-                hx-include="#sellQty-{{symbol}}"
                 hx-target="#portfolioMsg"
                 hx-swap="innerHTML"
               >
-                Sell
-              </button>
+                <label class="form-label">Sell qty</label>
+                <input
+                  name="qty"
+                  class="form-control form-control-sm"
+                  type="number"
+                  step="1"
+                  min="1"
+                />
+                <button type="submit" class="btn btn-danger btn-sm mt-2 w-100">
+                  Sell
+                </button>
+              </form>
             </div>
           </div>
         </div>

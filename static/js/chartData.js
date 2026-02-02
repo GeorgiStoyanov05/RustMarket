@@ -2,6 +2,12 @@
 // Real-time Finnhub trades (WS) -> build candles live (no historical)
 // Works with SSR + HTMX (safe init/cleanup), dark theme, sane candle sizing
 
+function updateQuoteUI(price) {
+	const cur = wrap.querySelector('[data-role="quote-current"]');
+	if (!cur) return;
+	cur.textContent = fmt2(price);
+}
+
 (function () {
 	const RES_TO_SEC = { 1: 60, 5: 300, 15: 900, 30: 1800, 60: 3600 };
 
@@ -147,9 +153,17 @@
 			pnlVal.textContent = (pnl > 0 ? "+" : "") + fmt2(pnl);
 			pnlPct.textContent = (pct > 0 ? "+" : "") + fmt2(pct);
 
-			pnlRow.classList.remove("text-success", "text-danger", "text-muted");
+			pnlRow.classList.remove(
+				"text-success",
+				"text-danger",
+				"text-muted",
+			);
 			pnlRow.classList.add(
-				pnl > 0 ? "text-success" : pnl < 0 ? "text-danger" : "text-muted"
+				pnl > 0
+					? "text-success"
+					: pnl < 0
+						? "text-danger"
+						: "text-muted",
 			);
 		}
 
@@ -159,6 +173,7 @@
 				posUpdateRAF = null;
 				if (lastTradePrice == null) return;
 				updatePositionUI(lastTradePrice);
+				updateQuoteUI(lastTradePrice);
 			});
 		}
 
@@ -184,7 +199,9 @@
 		function connect() {
 			if (reconnectTimer) clearTimeout(reconnectTimer);
 
-			ws = new WebSocket(wsUrl(`/ws/trades?symbol=${encodeURIComponent(symbol)}`));
+			ws = new WebSocket(
+				wsUrl(`/ws/trades?symbol=${encodeURIComponent(symbol)}`),
+			);
 
 			ws.onmessage = (ev) => {
 				let msg;
@@ -201,7 +218,8 @@
 					const price = Number(tr.p);
 					lastTradePrice = price;
 					const tSec = Math.floor(Number(tr.t) / 1000);
-					if (!Number.isFinite(price) || !Number.isFinite(tSec)) continue;
+					if (!Number.isFinite(price) || !Number.isFinite(tSec))
+						continue;
 
 					ticks.push({ t: tSec, p: price });
 					trimTicks();
@@ -231,7 +249,7 @@
 					document.dispatchEvent(
 						new CustomEvent("rm:tradePrice", {
 							detail: { symbol, price: lastTradePrice },
-						})
+						}),
 					);
 					schedulePosUpdate();
 				}

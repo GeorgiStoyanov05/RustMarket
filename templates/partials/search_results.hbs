@@ -1,33 +1,37 @@
 {{#if error}}
   <div class="text-danger">{{error}}</div>
 
-{{else if (not query)}}
-  <div class="text-muted">Start typing to search…</div>
-
-{{else if (not results)}}
-  <div class="text-muted">No results for “{{query}}”.</div>
-
 {{else}}
-  <div class="text-muted small mb-2">Results for “{{query}}”</div>
+  {{#if query}}
 
-  <div class="list-group">
-    {{#each results}}
-      <a
-        class="list-group-item list-group-item-action"
-        href="/details/{{display_symbol}}"
-        hx-get="/details/{{display_symbol}}"
-        hx-target="#app"
-        hx-swap="innerHTML"
-        hx-push-url="true"
-      >
-        <div class="d-flex justify-content-between">
-          <div>
-            <div class="fw-semibold">{{display_symbol}}</div>
-            <div class="small text-muted">{{description}}</div>
-          </div>
-          <span class="badge text-bg-secondary">{{type}}</span>
-        </div>
-      </a>
-    {{/each}}
-  </div>
+    {{#if results}}
+      <div class="text-muted small mb-2">Results for “{{query}}”</div>
+
+      <div class="list-group">
+        {{#each results}}
+          <a
+            class="list-group-item list-group-item-action"
+            href="/details/{{symbol}}"
+            hx-get="/details/{{symbol}}"
+            hx-target="#app"
+            hx-swap="innerHTML"
+            hx-push-url="true"
+          >
+            <div class="d-flex justify-content-between">
+              <div>
+                <div class="fw-semibold">{{display_symbol}}</div>
+                <div class="small text-muted">{{description}}</div>
+              </div>
+            </div>
+          </a>
+        {{/each}}
+      </div>
+
+    {{else}}
+      <div class="text-muted">No results for “{{query}}”.</div>
+    {{/if}}
+
+  {{else}}
+    <div class="text-muted">Start typing to search…</div>
+  {{/if}}
 {{/if}}

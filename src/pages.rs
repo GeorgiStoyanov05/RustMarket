@@ -212,6 +212,7 @@ pub async fn get_portfolio_positions(
             "symbol": symbol,
             "qty": p.qty,
             "avg": fmt2(p.avg_price),
+            "avg_raw": p.avg_price,
             "current_price": fmt2(last),
             "pnl": (if pnl > 0.0 { "+" } else { "" }).to_string() + &fmt2(pnl),
             "pnl_pct": (if pct > 0.0 { "+" } else { "" }).to_string() + &fmt2(pct),

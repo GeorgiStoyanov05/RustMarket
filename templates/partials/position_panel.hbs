@@ -1,5 +1,10 @@
 {{#if has_position}}
-  <div class="border rounded p-3 bg-body" data-qty="{{qty}}" data-avg="{{avg_price_raw}}">
+  <div
+    class="border rounded p-3 bg-body"
+    data-position-panel="1"
+    data-qty="{{qty}}"
+    data-avg="{{avg_price_raw}}"
+  >
     <div class="d-flex justify-content-between mb-2">
       <div class="fw-semibold">Position</div>
       <span class="badge text-bg-secondary">{{symbol}}</span>
@@ -13,13 +18,18 @@
         <div class="text-muted">Avg</div>
         <div>${{avg_price}}</div>
       </div>
+
       <div class="col-6">
         <div class="text-muted">Last</div>
-        <div>${{last_price}}</div>
+        <div>$<span data-role="pos-last-price">{{last_price}}</span></div>
       </div>
+
       <div class="col-12">
         <div class="text-muted">P/L</div>
-        <div class="{{pnl_class}} fw-semibold">{{pnl}} ({{pnl_pct}}%)</div>
+        <div data-role="pos-pnl-row" class="{{pnl_class}} fw-semibold">
+          <span data-role="pos-pnl-val">{{pnl}}</span>
+          (<span data-role="pos-pnl-pct">{{pnl_pct}}</span>%)
+        </div>
       </div>
     </div>
   </div>
