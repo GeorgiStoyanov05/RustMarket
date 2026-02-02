@@ -739,6 +739,7 @@ pub async fn post_settings_email(
         return (StatusCode::OK, Html(partial)).into_response();
     };
 
+    // validate email
     if new_email.is_empty() {
         errors.insert("email".into(), json!("Email is required."));
     } else {
@@ -748,20 +749,33 @@ pub async fn post_settings_email(
         }
     }
 
+    // NEW: must differ from current email
+    if errors.is_empty() && new_email.eq_ignore_ascii_case(&u.email) {
+        errors.insert("email".into(), json!("New email must be different from your current email."));
+    }
+
     let users = state.db.collection::<User>("users");
 
+    // uniqueness check (fast path)
     if errors.is_empty() {
         if let Ok(Some(_)) = users.find_one(doc! { "email": &new_email }, None).await {
             errors.insert("email".into(), json!("This email is already in use."));
         }
     }
 
+    // update
     if errors.is_empty() {
         if let Err(e) = users
             .update_one(doc! { "_id": u.id }, doc! { "$set": { "email": &new_email } }, None)
             .await
         {
-            errors.insert("_form".into(), json!(format!("db error: {e}")));
+            // NEW: handle duplicate-key gracefully (because now we have an index)
+            let msg = e.to_string();
+            if msg.contains("E11000") {
+                errors.insert("email".into(), json!("This email is already in use."));
+            } else {
+                errors.insert("_form".into(), json!(format!("db error: {e}")));
+            }
         }
     }
 
@@ -785,6 +799,7 @@ pub async fn post_settings_email(
 
     (StatusCode::OK, Html(partial)).into_response()
 }
+
 
 
 pub async fn get_settings_password(
@@ -832,7 +847,7 @@ pub async fn post_settings_password(
 ) -> axum::response::Response {
     let mut errors = serde_json::Map::new();
 
-    let Some(Extension(_u)) = user else {
+    let Some(Extension(u)) = user else {
         errors.insert("_form".into(), json!("There was an error getting user"));
 
         let partial = state
@@ -861,14 +876,60 @@ pub async fn post_settings_password(
     if errors.is_empty() && password != re_password {
         errors.insert("rePassword".into(), json!("Passwords do not match."));
     }
-
     if errors.is_empty() && password.len() < 6 {
         errors.insert("password".into(), json!("Password must be at least 6 characters."));
     }
 
-    // NOTE: keep your existing DB update/hashing logic here if it already works.
-    // If your previous implementation updated the DB correctly, you can keep it as-is
-    // and only keep the "logged out => errors partial" behavior above.
+    let users = state.db.collection::<User>("users");
+
+    // NEW: cannot be same as current password
+    if errors.is_empty() {
+        let db_user = match users.find_one(doc! { "_id": u.id }, None).await {
+            Ok(Some(x)) => x,
+            _ => {
+                errors.insert("_form".into(), json!("User not found."));
+                let partial = state
+                    .hbs
+                    .render(
+                        "partials/change_password",
+                        &json!({ "errors": errors, "succ": "" }),
+                    )
+                    .unwrap_or_else(|e| format!("template error: {e}"));
+                return (StatusCode::OK, Html(partial)).into_response();
+            }
+        };
+
+        if verify(&password, &db_user.password_hash).unwrap_or(false) {
+            errors.insert(
+                "password".into(),
+                json!("New password must be different from your current password."),
+            );
+        }
+    }
+
+    // update password_hash
+    if errors.is_empty() {
+        let pw_hash = match hash(&password, DEFAULT_COST) {
+            Ok(h) => h,
+            Err(_) => {
+                errors.insert("_form".into(), json!("Failed to hash password."));
+                String::new()
+            }
+        };
+
+        if errors.is_empty() {
+            if let Err(e) = users
+                .update_one(
+                    doc! { "_id": u.id },
+                    doc! { "$set": { "password_hash": pw_hash } },
+                    None,
+                )
+                .await
+            {
+                errors.insert("_form".into(), json!(format!("db error: {e}")));
+            }
+        }
+    }
 
     let partial = state
         .hbs

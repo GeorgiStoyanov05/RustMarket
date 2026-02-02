@@ -5,6 +5,19 @@ use mongodb::{
 };
 
 pub async fn ensure_indexes(db: &Database) -> Result<(), String> {
+    // users: unique email
+    {
+        let col = db.collection::<mongodb::bson::Document>("users");
+        let model = IndexModel::builder()
+            .keys(doc! { "email": 1 })
+            .options(IndexOptions::builder().unique(true).build())
+            .build();
+
+        col.create_index(model, None)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
     // positions: unique per (user_id, symbol)
     {
         let col = db.collection::<mongodb::bson::Document>("positions");
@@ -30,7 +43,7 @@ pub async fn ensure_indexes(db: &Database) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
-    // alerts: optional but helpful for monitor scan (triggered + symbol)
+    // alerts: helpful for monitor scan (triggered + symbol)
     {
         let col = db.collection::<mongodb::bson::Document>("alerts");
         let model = IndexModel::builder()
