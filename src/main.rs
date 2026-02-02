@@ -17,6 +17,8 @@ mod pages;
 mod render;
 mod templates;
 mod ws;
+mod alert_monitor;
+mod events;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -24,7 +26,9 @@ pub struct AppState {
     pub db: mongodb::Database,
     pub settings: config::Settings,
     pub finnhub: finnhub::FinnhubClient,
+    pub events_tx: tokio::sync::broadcast::Sender<String>,
 }
+
 
 #[tokio::main]
 async fn main() {
@@ -39,13 +43,16 @@ async fn main() {
     let db = client.database(&settings.mongodb_db);
 
     let finnhub = finnhub::FinnhubClient::new(settings.finnhub_api_key.clone());
-
+    let (events_tx, _events_rx) = tokio::sync::broadcast::channel::<String>(256);
     let state = AppState {
         hbs: templates::build_handlebars(),
         db,
         settings: settings.clone(),
         finnhub,
+        events_tx,
     };
+
+    alert_monitor::spawn_price_alert_monitor(state.clone());
 
     use axum::middleware::from_fn_with_state;
 
@@ -102,6 +109,7 @@ async fn main() {
             get(handlers::get_settings_password).post(handlers::post_settings_password),
         )
         .route("/alerts/by-id/:id/trigger", post(features::post_trigger_alert))
+        .route("/events", get(events::sse_events))
         .nest_service("/static", ServeDir::new("static"))
         .fallback(handlers::not_found)
         .layer(from_fn_with_state(state.clone(), auth::require_auth))

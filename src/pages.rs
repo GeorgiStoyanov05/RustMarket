@@ -308,6 +308,8 @@ pub async fn get_watchlist_alerts(
                 "condition": a.condition,
                 "target_price": fmt2(a.target_price),
                 "created_at": a.created_at,
+                "triggered": a.triggered,
+                "triggered_at": a.triggered_at,
             }));
         }
 
@@ -330,6 +332,7 @@ pub async fn get_watchlist_alerts(
 
     (StatusCode::OK, Html(body)).into_response()
 }
+
 
 
 // POST /funds

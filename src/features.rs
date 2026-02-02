@@ -671,18 +671,27 @@ pub async fn post_create_alert(
 
 pub async fn post_delete_alert(
     State(state): State<AppState>,
-    Path(symbol): Path<String>,
+    Path((symbol, id)): Path<(String, String)>,
     user: Option<Extension<CurrentUser>>,
 ) -> Response {
     let Some(Extension(u)) = user else {
-        return unauthorized_snippet();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Html(r#"<div class="text-danger">Unauthorized</div>"#.to_string()),
+        )
+            .into_response();
+    };
+
+    let oid = match ObjectId::parse_str(&id) {
+        Ok(x) => x,
+        Err(_) => return (StatusCode::BAD_REQUEST, Html("bad id".to_string())).into_response(),
     };
 
     let sym = symbol.to_uppercase();
     let alerts = state.db.collection::<Alert>("alerts");
 
     if let Err(e) = alerts
-        .delete_many(doc! { "user_id": u.id, "symbol": &sym }, None)
+        .delete_one(doc! { "_id": oid, "user_id": u.id, "symbol": &sym }, None)
         .await
     {
         return (
@@ -692,11 +701,20 @@ pub async fn post_delete_alert(
             .into_response();
     }
 
-    let mut headers = HeaderMap::new();
-    headers.insert("HX-Trigger", hx_trigger_value(&["alertsUpdated"]));
+    // Notify all open pages/tabs
+    let _ = state.events_tx.send("alertsUpdated".to_string());
 
-    (StatusCode::OK, headers, Html("".to_string())).into_response()
+    let mut headers = HeaderMap::new();
+    headers.insert("HX-Trigger", HeaderValue::from_static("alertsUpdated"));
+
+    (
+        StatusCode::OK,
+        headers,
+        Html(r#"<div class="text-success">Alert deleted.</div>"#.to_string()),
+    )
+        .into_response()
 }
+
 
 pub async fn post_delete_alert_global(
     State(state): State<AppState>,
@@ -726,6 +744,7 @@ pub async fn post_delete_alert_global(
     }
 
     let mut headers = HeaderMap::new();
+    let _ = state.events_tx.send("alertsUpdated".to_string());
     headers.insert("HX-Trigger", hx_trigger_value(&["alertsUpdated"]));
 
     (StatusCode::OK, headers, Html("".to_string())).into_response()
