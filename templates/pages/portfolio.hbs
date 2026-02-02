@@ -3,12 +3,17 @@
     <h1 class="mb-0">Portfolio</h1>
   </div>
 
-  <div id="portfolioMsg" class="mb-3"></div>
+  <div id="portfolioMsg" class="small mb-3"></div>
 
-  <div
-    id="portfolioPositions"
-    hx-get="/portfolio/positions"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  ></div>
+  <h2 class="h5 mt-3 mb-2">Positions</h2>
+  <div id="portfolioPositions"
+       hx-get="/portfolio/positions"
+       hx-trigger="load, positionUpdated from:body"
+       hx-swap="innerHTML"></div>
+
+  <h2 class="h5 mt-4 mb-2">Order history</h2>
+  <div id="ordersList"
+       hx-get="/portfolio/orders"
+       hx-trigger="load, ordersUpdated from:body"
+       hx-swap="innerHTML"></div>
 </div>

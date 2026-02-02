@@ -14,7 +14,7 @@ use serde_json::json;
 
 use crate::{
     AppState,
-    models::{Account, Alert, CurrentUser, Position},
+    models::{Account, Alert, CurrentUser, Position, Order},
 };
 
 fn is_htmx(headers: &HeaderMap) -> bool {
@@ -339,12 +339,30 @@ pub async fn post_trade_buy(
         )
             .into_response();
     }
+    // record order
+    let orders = state.db.collection::<Order>("orders");
+    let now = Utc::now().timestamp();
 
+    let order = Order {
+        id: ObjectId::new(),
+        user_id: u.id,
+        symbol: sym.clone(),
+        side: "buy".to_string(),
+        qty,
+        price,
+        total,
+        created_at: now,
+    };
+
+    let _ = orders.insert_one(order, None).await;
+
+    // broadcast so other tabs/pages update
+    let _ = state.events_tx.send("ordersUpdated".to_string());
+    let _ = state.events_tx.send("positionUpdated".to_string());
+    let _ = state.events_tx.send("cashUpdated".to_string());
     let mut headers = HeaderMap::new();
-    headers.insert(
-        "HX-Trigger",
-        hx_trigger_value(&["cashUpdated", "positionUpdated"]),
-    );
+    headers.insert("HX-Trigger", hx_trigger_value(&["cashUpdated", "positionUpdated", "ordersUpdated"]));
+
 
     (
         StatusCode::OK,
@@ -497,10 +515,32 @@ pub async fn post_trade_sell(
         }
     }
 
+    // record order
+    let orders = state.db.collection::<Order>("orders");
+    let now = Utc::now().timestamp();
+
+    let order = Order {
+        id: ObjectId::new(),
+        user_id: u.id,
+        symbol: sym.clone(),
+        side: "sell".to_string(),
+        qty,
+        price,
+        total: proceeds,
+        created_at: now,
+    };
+
+    let _ = orders.insert_one(order, None).await;
+
+    // broadcast so other tabs/pages update
+    let _ = state.events_tx.send("ordersUpdated".to_string());
+    let _ = state.events_tx.send("positionUpdated".to_string());
+    let _ = state.events_tx.send("cashUpdated".to_string());
+
     let mut headers = HeaderMap::new();
     headers.insert(
         "HX-Trigger",
-        hx_trigger_value(&["cashUpdated", "positionUpdated"]),
+        hx_trigger_value(&["cashUpdated", "positionUpdated", "ordersUpdated"]),
     );
 
     (
@@ -765,21 +805,37 @@ pub async fn post_trigger_alert(
     };
 
     let alerts = state.db.collection::<Alert>("alerts");
+    let now = Utc::now().timestamp();
 
-    // delete alert after trigger
-    if let Err(e) = alerts
-        .delete_one(doc! { "_id": oid, "user_id": u.id }, None)
+    let res = match alerts
+        .update_one(
+            doc! { "_id": oid, "user_id": u.id, "triggered": false },
+            doc! { "$set": { "triggered": true, "triggered_at": now } },
+            None,
+        )
         .await
     {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Html(format!("db error: {e}")),
-        )
-            .into_response();
-    }
+        Ok(r) => r,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("db error: {e}")),
+            )
+                .into_response();
+        }
+    };
+
+    // Notify all open pages/tabs
+    let _ = state.events_tx.send("alertsUpdated".to_string());
 
     let mut headers = HeaderMap::new();
     headers.insert("HX-Trigger", hx_trigger_value(&["alertsUpdated"]));
 
-    (StatusCode::OK, headers, Html("".to_string())).into_response()
+    let msg = if res.matched_count == 0 {
+        r#"<div class="text-muted">Alert already triggered.</div>"#
+    } else {
+        r#"<div class="text-warning">⚠️ Alert triggered!</div>"#
+    };
+
+    (StatusCode::OK, headers, Html(msg.to_string())).into_response()
 }

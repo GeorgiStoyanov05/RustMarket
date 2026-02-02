@@ -1,0 +1,36 @@
+{{#if items}}
+  <div class="table-responsive">
+    <table class="table table-dark table-striped align-middle mb-0">
+      <thead>
+        <tr>
+          <th style="width: 170px;">Time (UTC)</th>
+          <th>Symbol</th>
+          <th>Side</th>
+          <th class="text-end">Qty</th>
+          <th class="text-end">Price</th>
+          <th class="text-end">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each items}}
+          <tr>
+            <td class="small text-muted">{{created_at}}</td>
+            <td class="fw-semibold">{{symbol}}</td>
+            <td>
+              {{#if (eq side "buy")}}
+                <span class="badge text-bg-success">BUY</span>
+              {{else}}
+                <span class="badge text-bg-danger">SELL</span>
+              {{/if}}
+            </td>
+            <td class="text-end">{{qty}}</td>
+            <td class="text-end">${{price}}</td>
+            <td class="text-end">${{total}}</td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+{{else}}
+  <div class="text-muted">No orders yet.</div>
+{{/if}}

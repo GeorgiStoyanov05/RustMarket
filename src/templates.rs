@@ -47,6 +47,7 @@ pub fn build_handlebars() -> Hbs {
     // Settings
     register_file(&mut hb, "partials/change_email", "templates/partials/change_email.hbs");
     register_file(&mut hb, "partials/change_password", "templates/partials/change_password.hbs");
+    register_file(&mut hb, "partials/orders_list", "templates/partials/orders_list.hbs");
     if Path::new("templates/partials/navbar.hbs").exists() {
         let navbar = std::fs::read_to_string("templates/partials/navbar.hbs")
             .expect("partials/navbar.hbs");

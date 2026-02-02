@@ -12,7 +12,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
-    models::{Account, Alert, CurrentUser, Position},
+    models::{Account, Alert, CurrentUser, Order, Position},
     render,
     AppState,
 };
@@ -41,15 +41,18 @@ async fn get_or_create_account(state: &AppState, user_id: ObjectId) -> Result<Ac
     if let Ok(Some(acc)) = accounts.find_one(doc! { "_id": user_id }, None).await {
         return Ok(acc);
     }
+
     let acc = Account {
         id: user_id,
         cash: 10_000.0,
         updated_at: Utc::now().timestamp(),
     };
+
     accounts
         .insert_one(&acc, None)
         .await
         .map_err(|e| e.to_string())?;
+
     Ok(acc)
 }
 
@@ -138,11 +141,7 @@ pub async fn get_cash_badge(
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))),
     };
 
-    let html = render_page(
-        &state,
-        "partials/cash_badge",
-        json!({ "cash": fmt2(acc.cash) }),
-    );
+    let html = render_page(&state, "partials/cash_badge", json!({ "cash": fmt2(acc.cash) }));
     (StatusCode::OK, Html(html))
 }
 
@@ -151,17 +150,35 @@ pub async fn get_cash_badge(
 // GET /portfolio/positions
 pub async fn get_portfolio_positions(
     State(state): State<AppState>,
-    _headers: HeaderMap,
     user: Option<Extension<CurrentUser>>,
 ) -> Response {
+    let Some(Extension(u)) = user else {
+        return (
+            StatusCode::OK,
+            Html(r#"<div class="text-muted">Log in to see your portfolio.</div>"#.to_string()),
+        )
+            .into_response();
+    };
+
+    let positions = state.db.collection::<Position>("positions");
+    let find_opts = FindOptions::builder().sort(doc! { "updated_at": -1 }).build();
+
+    let mut cursor = match positions.find(doc! { "user_id": u.id }, find_opts).await {
+        Ok(c) => c,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("db error: {e}")),
+            )
+                .into_response()
+        }
+    };
+
     let mut groups: Vec<serde_json::Value> = vec![];
 
-    if let Some(Extension(u)) = user {
-        let positions = state.db.collection::<Position>("positions");
-        let find_opts = FindOptions::builder().sort(doc! { "updated_at": -1 }).build();
-
-        let mut cursor = match positions.find(doc! { "user_id": u.id }, find_opts).await {
-            Ok(c) => c,
+    while let Some(res) = cursor.next().await {
+        let p = match res {
+            Ok(p) => p,
             Err(e) => {
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -171,33 +188,35 @@ pub async fn get_portfolio_positions(
             }
         };
 
-        while let Some(res) = cursor.next().await {
-            let p = match res {
-                Ok(p) => p,
-                Err(e) => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Html(format!("db error: {e}")),
-                    )
-                        .into_response()
-                }
-            };
+        let symbol = p.symbol.to_uppercase();
 
-            let symbol = p.symbol.to_uppercase();
+        let q = state.finnhub.quote(&symbol).await.ok();
+        let last = q.map(|x| x.c).unwrap_or(0.0);
 
-            let q = state.finnhub.quote(&symbol).await.ok();
-            let last = q.map(|x| x.c).unwrap_or(0.0);
+        let pnl = (last - p.avg_price) * (p.qty as f64);
+        let pct = if p.avg_price > 0.0 {
+            ((last - p.avg_price) / p.avg_price) * 100.0
+        } else {
+            0.0
+        };
 
-            let pnl = (last - p.avg_price) * (p.qty as f64);
+        let pnl_class = if pnl > 0.0 {
+            "text-success"
+        } else if pnl < 0.0 {
+            "text-danger"
+        } else {
+            "text-muted"
+        };
 
-            groups.push(json!({
-                "symbol": symbol,
-                "qty": p.qty,
-                "avg_price": fmt2(p.avg_price),
-                "last": fmt2(last),
-                "pnl": fmt2(pnl),
-            }));
-        }
+        groups.push(json!({
+            "symbol": symbol,
+            "qty": p.qty,
+            "avg": fmt2(p.avg_price),
+            "current_price": fmt2(last),
+            "pnl": (if pnl > 0.0 { "+" } else { "" }).to_string() + &fmt2(pnl),
+            "pnl_pct": (if pct > 0.0 { "+" } else { "" }).to_string() + &fmt2(pct),
+            "pnl_class": pnl_class,
+        }));
     }
 
     let ctx = json!({
@@ -212,8 +231,7 @@ pub async fn get_portfolio_positions(
     (StatusCode::OK, Html(body)).into_response()
 }
 
-
-// ✅ NEW: GET /portfolio/position/:symbol
+// ✅ GET /portfolio/position/:symbol
 // Returns ONE card (outerHTML swap target). If the position no longer exists, returns empty string (removes the card).
 pub async fn get_portfolio_position_card(
     State(state): State<AppState>,
@@ -232,7 +250,13 @@ pub async fn get_portfolio_position_card(
         .await
     {
         Ok(x) => x,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("db error: {e}")),
+            )
+                .into_response()
+        }
     };
 
     let Some(p) = p else {
@@ -244,8 +268,18 @@ pub async fn get_portfolio_position_card(
     let last = q.map(|x| x.c).unwrap_or(0.0);
 
     let pnl = (last - p.avg_price) * (p.qty as f64);
-    let pct = if p.avg_price > 0.0 { ((last - p.avg_price) / p.avg_price) * 100.0 } else { 0.0 };
-    let pnl_class = if pnl > 0.0 { "text-success" } else if pnl < 0.0 { "text-danger" } else { "text-muted" };
+    let pct = if p.avg_price > 0.0 {
+        ((last - p.avg_price) / p.avg_price) * 100.0
+    } else {
+        0.0
+    };
+    let pnl_class = if pnl > 0.0 {
+        "text-success"
+    } else if pnl < 0.0 {
+        "text-danger"
+    } else {
+        "text-muted"
+    };
 
     let ctx = json!({
         "symbol": sym,
@@ -257,11 +291,79 @@ pub async fn get_portfolio_position_card(
         "pnl_class": pnl_class
     });
 
-    let html = state.hbs
+    let html = state
+        .hbs
         .render("partials/portfolio_position_card", &ctx)
         .unwrap_or_else(|e| format!("template error: {e}"));
 
     (StatusCode::OK, Html(html)).into_response()
+}
+
+// ✅ GET /portfolio/orders
+pub async fn get_portfolio_orders(
+    State(state): State<AppState>,
+    user: Option<Extension<CurrentUser>>,
+) -> Response {
+    let Some(Extension(u)) = user else {
+        return (StatusCode::OK, Html("".to_string())).into_response();
+    };
+
+    let orders = state.db.collection::<Order>("orders");
+
+    let find_opts = FindOptions::builder()
+        .sort(doc! { "created_at": -1 })
+        .limit(25)
+        .build();
+
+    let mut cursor = match orders.find(doc! { "user_id": u.id }, find_opts).await {
+        Ok(c) => c,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("db error: {e}")),
+            )
+                .into_response()
+        }
+    };
+
+    let mut items: Vec<serde_json::Value> = vec![];
+
+    while let Some(res) = cursor.next().await {
+        let o = match res {
+            Ok(o) => o,
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Html(format!("db error: {e}")),
+                )
+                    .into_response()
+            }
+        };
+
+        let dt = chrono::NaiveDateTime::from_timestamp_opt(o.created_at, 0)
+            .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
+            .unwrap_or_else(|| o.created_at.to_string());
+
+        items.push(json!({
+            "created_at": dt,
+            "symbol": o.symbol.to_uppercase(),
+            "side": o.side,
+            "qty": o.qty,
+            "price": fmt2(o.price),
+            "total": fmt2(o.total)
+        }));
+    }
+
+    let ctx = json!({
+        "items": if items.is_empty() { serde_json::Value::Null } else { serde_json::Value::Array(items) }
+    });
+
+    let body = state
+        .hbs
+        .render("partials/orders_list", &ctx)
+        .unwrap_or_else(|e| format!("template error: {e}"));
+
+    (StatusCode::OK, Html(body)).into_response()
 }
 
 pub async fn get_watchlist_alerts(
@@ -333,14 +435,11 @@ pub async fn get_watchlist_alerts(
     (StatusCode::OK, Html(body)).into_response()
 }
 
-
-
 // POST /funds
 #[derive(Deserialize)]
 pub struct DepositForm {
     pub amount: String,
 }
-
 
 pub async fn post_funds(
     State(state): State<AppState>,
@@ -405,11 +504,13 @@ pub async fn post_funds(
             .into_response();
     }
 
-    let msg =
-        r#"<div class="alert alert-success mb-0">The deposit was successful!</div>"#.to_string();
+    let msg = r#"<div class="alert alert-success mb-0">The deposit was successful!</div>"#.to_string();
 
     let mut headers = HeaderMap::new();
     headers.insert("HX-Trigger", HeaderValue::from_static(r#"{"cashUpdated":true}"#));
+
+    // also broadcast to other tabs
+    let _ = state.events_tx.send("cashUpdated".to_string());
 
     (StatusCode::OK, headers, Html(msg)).into_response()
 }

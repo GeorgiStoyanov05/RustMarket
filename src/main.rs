@@ -19,6 +19,7 @@ mod templates;
 mod ws;
 mod alert_monitor;
 mod events;
+mod db_init;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -41,6 +42,9 @@ async fn main() {
         .await
         .expect("Failed to connect to MongoDB");
     let db = client.database(&settings.mongodb_db);
+    db_init::ensure_indexes(&db)
+        .await
+        .expect("Failed to ensure MongoDB indexes");
 
     let finnhub = finnhub::FinnhubClient::new(settings.finnhub_api_key.clone());
     let (events_tx, _events_rx) = tokio::sync::broadcast::channel::<String>(256);
@@ -110,6 +114,7 @@ async fn main() {
         )
         .route("/alerts/by-id/:id/trigger", post(features::post_trigger_alert))
         .route("/events", get(events::sse_events))
+        .route("/portfolio/orders", get(pages::get_portfolio_orders))
         .nest_service("/static", ServeDir::new("static"))
         .fallback(handlers::not_found)
         .layer(from_fn_with_state(state.clone(), auth::require_auth))

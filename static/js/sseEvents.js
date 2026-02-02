@@ -17,6 +17,7 @@
     es.addEventListener("alertsUpdated", () => fire("alertsUpdated"));
     es.addEventListener("positionUpdated", () => fire("positionUpdated"));
     es.addEventListener("cashUpdated", () => fire("cashUpdated"));
+    es.addEventListener("ordersUpdated", () => fire("ordersUpdated"));
 
     es.onerror = () => {
       try { es.close(); } catch {}
