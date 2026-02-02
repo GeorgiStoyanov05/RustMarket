@@ -1,4 +1,7 @@
-use axum::{routing::{get, post}, Router};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use mongodb::Client;
 use std::net::SocketAddr;
 use tower_http::services::ServeDir;
@@ -6,13 +9,14 @@ use tracing_subscriber;
 
 mod auth;
 mod config;
-mod handlers;
 mod features;
-mod models;
-mod templates;
 mod finnhub;
-mod ws;
+mod handlers;
+mod models;
 mod pages;
+mod render;
+mod templates;
+mod ws;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -49,8 +53,14 @@ async fn main() {
         .route("/", get(handlers::home))
         .route("/health", get(handlers::health))
         .route("/health/db", get(handlers::health_db))
-        .route("/login", get(handlers::get_login).post(handlers::post_login))
-        .route("/register", get(handlers::get_register).post(handlers::post_register))
+        .route(
+            "/login",
+            get(handlers::get_login).post(handlers::post_login),
+        )
+        .route(
+            "/register",
+            get(handlers::get_register).post(handlers::post_register),
+        )
         .route("/logout", get(handlers::logout))
         .route("/me", get(handlers::me))
         .route("/search", get(handlers::get_search))
@@ -62,18 +72,39 @@ async fn main() {
         .route("/trade/:symbol/sell", post(features::post_trade_sell))
         .route("/alerts/:symbol/list", get(features::get_alerts_list))
         .route("/alerts/:symbol", post(features::post_create_alert))
-        .route("/alerts/:symbol/:id/delete", post(features::post_delete_alert))
-        .route("/alerts/by-id/:id/delete", post(features::post_delete_alert_global))
+        .route(
+            "/alerts/:symbol/:id/delete",
+            post(features::post_delete_alert),
+        )
+        .route(
+            "/alerts/by-id/:id/delete",
+            post(features::post_delete_alert_global),
+        )
         .route("/portfolio", get(pages::get_portfolio_page))
         .route("/portfolio/positions", get(pages::get_portfolio_positions))
+        .route(
+            "/portfolio/position/:symbol",
+            get(pages::get_portfolio_position_card),
+        )
         .route("/alerts", get(pages::get_alerts_page))
         .route("/alerts/list", get(pages::get_watchlist_alerts))
         .route("/funds", get(pages::get_funds_page).post(pages::post_funds))
         .route("/funds/modal", get(pages::get_funds_modal))
         .route("/cash", get(pages::get_cash_badge))
         .route("/ws/trades", get(ws::ws_trades))
+        .route("/settings", get(handlers::get_settings))
+        .route(
+            "/settings/email",
+            get(handlers::get_settings_email).post(handlers::post_settings_email),
+        )
+        .route(
+            "/settings/password",
+            get(handlers::get_settings_password).post(handlers::post_settings_password),
+        )
+        .route("/alerts/by-id/:id/trigger", post(features::post_trigger_alert))
         .nest_service("/static", ServeDir::new("static"))
         .fallback(handlers::not_found)
+        .layer(from_fn_with_state(state.clone(), auth::require_auth))
         .layer(from_fn_with_state(state.clone(), auth::inject_current_user))
         .with_state(state);
 

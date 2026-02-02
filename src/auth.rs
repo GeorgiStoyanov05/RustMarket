@@ -1,9 +1,10 @@
 use axum::{
     extract::State,
-    http::{header, HeaderMap, Request},
+    http::{header, HeaderMap, HeaderValue, Request, StatusCode},
     middleware::Next,
-    response::Response,
+    response::{Html, IntoResponse, Redirect, Response},
 };
+
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use mongodb::bson::{doc, oid::ObjectId};
 use serde::{Deserialize, Serialize};
@@ -63,4 +64,62 @@ pub async fn inject_current_user(
     }
 
     next.run(req).await
+}
+fn is_htmx(headers: &HeaderMap) -> bool {
+    headers
+        .get("HX-Request")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
+fn is_websocket(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::UPGRADE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.eq_ignore_ascii_case("websocket"))
+        .unwrap_or(false)
+}
+
+fn is_public_path(path: &str) -> bool {
+    path == "/"
+        || path == "/login"
+        || path == "/register"
+        || path == "/logout"
+        || path == "/favicon.ico"
+        || path.starts_with("/static/")
+}
+
+pub async fn require_auth(
+    State(_state): State<AppState>,
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Response {
+    let path = req.uri().path();
+
+    // Allow only home/login/register/static (and logout)
+    if is_public_path(path) {
+        return next.run(req).await;
+    }
+
+    // If inject_current_user already put CurrentUser in extensions => authenticated
+    if req.extensions().get::<CurrentUser>().is_some() {
+        return next.run(req).await;
+    }
+
+    // Not logged in:
+    // - HTMX: force full redirect to /login
+    // - Normal: 302 redirect to /login
+    // - WebSocket: 401
+    if is_websocket(req.headers()) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    if is_htmx(req.headers()) {
+        let mut headers = HeaderMap::new();
+        headers.insert("HX-Redirect", HeaderValue::from_static("/login"));
+        return (StatusCode::OK, headers, Html("".to_string())).into_response();
+    }
+
+    Redirect::to("/login").into_response()
 }

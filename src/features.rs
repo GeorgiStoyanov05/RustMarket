@@ -1,20 +1,20 @@
 use futures_util::StreamExt;
 
 use axum::{
+    Form,
     extract::{Extension, Path, State},
     http::{HeaderMap, HeaderValue, StatusCode},
     response::{Html, IntoResponse, Response},
-    Form,
 };
 use chrono::Utc;
 use mongodb::bson::{doc, oid::ObjectId};
-use mongodb::options::FindOptions;
+use mongodb::options::{FindOptions, UpdateOptions};
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
-    models::{Account, Alert, CurrentUser, Position},
     AppState,
+    models::{Account, Alert, CurrentUser, Position},
 };
 
 fn is_htmx(headers: &HeaderMap) -> bool {
@@ -25,12 +25,29 @@ fn is_htmx(headers: &HeaderMap) -> bool {
         .unwrap_or(false)
 }
 
-fn htmx_trigger(mut res: Response, event: &str) -> Response {
-    // triggers a client-side event on the <body>
-    if let Ok(v) = HeaderValue::from_str(event) {
-        res.headers_mut().insert("HX-Trigger", v);
+fn unauthorized_snippet() -> Response {
+    (
+        StatusCode::UNAUTHORIZED,
+        Html(r#"<div class="text-danger">Unauthorized</div>"#.to_string()),
+    )
+        .into_response()
+}
+
+fn hx_trigger_value(events: &[&str]) -> HeaderValue {
+    // HX-Trigger supports either:
+    //  - a string: "eventName"
+    //  - a JSON object: {"event1":true,"event2":true}
+    if events.len() == 1 {
+        return HeaderValue::from_str(events[0]).unwrap_or_else(|_| HeaderValue::from_static(""));
     }
-    res
+
+    let mut map = serde_json::Map::new();
+    for &e in events {
+        map.insert(e.to_string(), serde_json::Value::Bool(true));
+    }
+
+    let json = serde_json::Value::Object(map).to_string();
+    HeaderValue::from_str(&json).unwrap_or_else(|_| HeaderValue::from_static(""))
 }
 
 fn fmt2(x: f64) -> String {
@@ -59,7 +76,11 @@ async fn get_or_create_account(state: &AppState, user_id: ObjectId) -> Result<Ac
     Ok(acc)
 }
 
-async fn get_position(state: &AppState, user_id: ObjectId, symbol: &str) -> Result<Option<Position>, String> {
+async fn get_position(
+    state: &AppState,
+    user_id: ObjectId,
+    symbol: &str,
+) -> Result<Option<Position>, String> {
     let positions = state.db.collection::<Position>("positions");
     positions
         .find_one(doc! { "user_id": user_id, "symbol": symbol }, None)
@@ -81,7 +102,9 @@ async fn upsert_position(state: &AppState, pos: &Position) -> Result<(), String>
                     "updated_at": pos.updated_at,
                 }
             },
-            mongodb::options::UpdateOptions::builder().upsert(true).build(),
+            mongodb::options::UpdateOptions::builder()
+                .upsert(true)
+                .build(),
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -98,7 +121,10 @@ async fn delete_position(state: &AppState, id: ObjectId) -> Result<(), String> {
 }
 
 fn not_logged_in_panel() -> Html<String> {
-    Html(r#"<div class="text-muted small">Log in to view and manage your position.</div>"#.to_string())
+    Html(
+        r#"<div class="text-muted small">Log in to view and manage your position.</div>"#
+            .to_string(),
+    )
 }
 
 // GET /positions/:symbol  (HTMX partial)
@@ -116,7 +142,13 @@ pub async fn get_position_panel(
 
     let pos = match get_position(&state, u.id, &sym).await {
         Ok(p) => p,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("db error: {e}")),
+            )
+                .into_response();
+        }
     };
 
     // current price (best effort)
@@ -169,10 +201,9 @@ pub async fn get_position_panel(
 
 #[derive(Deserialize)]
 pub struct TradeForm {
-    pub qty: i64,
+    pub qty: String,
 }
 
-// POST /trade/:symbol/buy
 pub async fn post_trade_buy(
     State(state): State<AppState>,
     Path(symbol): Path<String>,
@@ -180,98 +211,149 @@ pub async fn post_trade_buy(
     Form(form): Form<TradeForm>,
 ) -> Response {
     let Some(Extension(u)) = user else {
-        return (StatusCode::UNAUTHORIZED, Html("Please log in.".to_string())).into_response();
+        return unauthorized_snippet();
     };
 
     let sym = symbol.to_uppercase();
-    if form.qty <= 0 {
-        return (StatusCode::BAD_REQUEST, Html("Quantity must be > 0".to_string())).into_response();
+
+    let qty_str = form.qty.trim();
+    let qty: i64 = match qty_str.parse() {
+        Ok(q) => q,
+        Err(_) => {
+            return (
+                StatusCode::OK,
+                Html(r#"<div class="text-danger">Enter a valid quantity.</div>"#.to_string()),
+            )
+                .into_response();
+        }
+    };
+
+    if qty <= 0 {
+        return (
+            StatusCode::OK,
+            Html(r#"<div class="text-danger">Enter a valid quantity.</div>"#.to_string()),
+        )
+            .into_response();
     }
 
     let quote = match state.finnhub.quote(&sym).await {
         Ok(q) => q,
-        Err(e) => return (StatusCode::BAD_REQUEST, Html(format!("Quote error: {e}"))).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::OK,
+                Html(format!(
+                    r#"<div class="text-danger">Quote error: {e}</div>"#
+                )),
+            )
+                .into_response();
+        }
     };
-    let price = quote.c;
-    let total = price * (form.qty as f64);
 
-    // Account
+    let price = quote.c;
+    let total = price * (qty as f64);
+
     let mut acc = match get_or_create_account(&state, u.id).await {
         Ok(a) => a,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("db error: {e}")),
+            )
+                .into_response();
+        }
     };
 
-    if acc.cash + 1e-9 < total {
-        let msg = format!(
-            r#"<div class="alert alert-danger mb-2">Not enough funds. Cash: <b>${}</b>, Required: <b>${}</b></div>"#,
-            fmt2(acc.cash), fmt2(total)
-        );
-        return (StatusCode::OK, Html(msg)).into_response();
+    if acc.cash < total {
+        return (
+            StatusCode::OK,
+            Html(r#"<div class="text-danger">Not enough funds.</div>"#.to_string()),
+        )
+            .into_response();
     }
 
-    // Update cash
+    // update cash
     acc.cash -= total;
     acc.updated_at = Utc::now().timestamp();
 
     let accounts = state.db.collection::<Account>("accounts");
     if let Err(e) = accounts
         .update_one(
-            doc! { "_id": acc.id },
+            doc! { "_id": u.id },
             doc! { "$set": { "cash": acc.cash, "updated_at": acc.updated_at } },
             None,
         )
         .await
     {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(format!("db error: {e}")),
+        )
+            .into_response();
     }
 
-    // Update/create position
-    let now = Utc::now().timestamp();
-    let existing = match get_position(&state, u.id, &sym).await {
-        Ok(p) => p,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response(),
-    };
+    // upsert position
+    let positions = state.db.collection::<Position>("positions");
+    let existing = positions
+        .find_one(doc! { "user_id": u.id, "symbol": &sym }, None)
+        .await
+        .ok()
+        .flatten();
 
-    let new_pos = if let Some(mut p) = existing {
-        let old_qty = p.qty as f64;
-        let add_qty = form.qty as f64;
-        let new_qty_i = p.qty + form.qty;
-        let new_avg = if new_qty_i > 0 {
-            ((p.avg_price * old_qty) + (price * add_qty)) / (new_qty_i as f64)
+    let now = Utc::now().timestamp();
+
+    let (new_qty, new_avg) = if let Some(p) = existing {
+        let total_qty = p.qty + qty;
+        let total_cost = (p.avg_price * (p.qty as f64)) + (price * (qty as f64));
+        let avg = if total_qty > 0 {
+            total_cost / (total_qty as f64)
         } else {
             price
         };
-        p.qty = new_qty_i;
-        p.avg_price = new_avg;
-        p.updated_at = now;
-        p
+        (total_qty, avg)
     } else {
-        Position {
-            id: ObjectId::new(),
-            user_id: u.id,
-            symbol: sym.clone(),
-            qty: form.qty,
-            avg_price: price,
-            updated_at: now,
-        }
+        (qty, price)
     };
 
-    if let Err(e) = upsert_position(&state, &new_pos).await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response();
+    if let Err(e) = positions
+        .update_one(
+            doc! { "user_id": u.id, "symbol": &sym },
+            doc! {
+                "$set": {
+                    "qty": new_qty,
+                    "avg_price": new_avg,
+                    "updated_at": now
+                },
+                "$setOnInsert": {
+                    "created_at": now,
+                    "user_id": u.id,
+                    "symbol": &sym
+                }
+            },
+            UpdateOptions::builder().upsert(true).build(),
+        )
+        .await
+    {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(format!("db error: {e}")),
+        )
+            .into_response();
     }
 
-    let msg = format!(
-        r#"<div class="alert alert-success mb-2">Bought <b>{}</b> shares of <b>{}</b> @ <b>${}</b></div>"#,
-        form.qty,
-        sym,
-        fmt2(price)
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "HX-Trigger",
+        hx_trigger_value(&["cashUpdated", "positionUpdated"]),
     );
 
-    let res = (StatusCode::OK, Html(msg)).into_response();
-    htmx_trigger(res, r#"{"positionUpdated":true}"#)
+    (
+        StatusCode::OK,
+        headers,
+        Html(r#"<div class="text-success">Buy successful.</div>"#.to_string()),
+    )
+        .into_response()
 }
 
-// POST /trade/:symbol/sell
 pub async fn post_trade_sell(
     State(state): State<AppState>,
     Path(symbol): Path<String>,
@@ -279,86 +361,160 @@ pub async fn post_trade_sell(
     Form(form): Form<TradeForm>,
 ) -> Response {
     let Some(Extension(u)) = user else {
-        return (StatusCode::UNAUTHORIZED, Html("Please log in.".to_string())).into_response();
+        return unauthorized_snippet();
     };
 
     let sym = symbol.to_uppercase();
-    if form.qty <= 0 {
-        return (StatusCode::BAD_REQUEST, Html("Quantity must be > 0".to_string())).into_response();
-    }
 
-    let mut pos = match get_position(&state, u.id, &sym).await {
-        Ok(Some(p)) => p,
-        Ok(None) => {
-            return (StatusCode::OK, Html(r#"<div class="alert alert-danger mb-2">You don’t own this stock.</div>"#.to_string()))
-                .into_response()
+    let qty_str = form.qty.trim();
+    let qty: i64 = match qty_str.parse() {
+        Ok(q) => q,
+        Err(_) => {
+            return (
+                StatusCode::OK,
+                Html(r#"<div class="text-danger">Enter a valid quantity.</div>"#.to_string()),
+            )
+                .into_response();
         }
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response(),
     };
 
-    if form.qty > pos.qty {
-        return (StatusCode::OK, Html(format!(
-            r#"<div class="alert alert-danger mb-2">Not enough shares. You have <b>{}</b>.</div>"#,
-            pos.qty
-        )))
-        .into_response();
+    if qty <= 0 {
+        return (
+            StatusCode::OK,
+            Html(r#"<div class="text-danger">Enter a valid quantity.</div>"#.to_string()),
+        )
+            .into_response();
     }
 
     let quote = match state.finnhub.quote(&sym).await {
         Ok(q) => q,
-        Err(e) => return (StatusCode::BAD_REQUEST, Html(format!("Quote error: {e}"))).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::OK,
+                Html(format!(
+                    r#"<div class="text-danger">Quote error: {e}</div>"#
+                )),
+            )
+                .into_response();
+        }
     };
-    let price = quote.c;
-    let total = price * (form.qty as f64);
 
-    // Account
+    let price = quote.c;
+
+    // find position
+    let positions = state.db.collection::<Position>("positions");
+    let pos = match positions
+        .find_one(doc! { "user_id": u.id, "symbol": &sym }, None)
+        .await
+    {
+        Ok(p) => p,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("db error: {e}")),
+            )
+                .into_response();
+        }
+    };
+
+    let Some(mut p) = pos else {
+        return (
+            StatusCode::OK,
+            Html(r#"<div class="text-danger">You don't own this stock.</div>"#.to_string()),
+        )
+            .into_response();
+    };
+
+    if qty > p.qty {
+        return (
+            StatusCode::OK,
+            Html(r#"<div class="text-danger">Not enough shares.</div>"#.to_string()),
+        )
+            .into_response();
+    }
+
+    // update cash
     let mut acc = match get_or_create_account(&state, u.id).await {
         Ok(a) => a,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("db error: {e}")),
+            )
+                .into_response();
+        }
     };
 
-    acc.cash += total;
+    let proceeds = price * (qty as f64);
+    acc.cash += proceeds;
     acc.updated_at = Utc::now().timestamp();
 
     let accounts = state.db.collection::<Account>("accounts");
     if let Err(e) = accounts
         .update_one(
-            doc! { "_id": acc.id },
+            doc! { "_id": u.id },
             doc! { "$set": { "cash": acc.cash, "updated_at": acc.updated_at } },
             None,
         )
         .await
     {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(format!("db error: {e}")),
+        )
+            .into_response();
     }
 
-    // Update/delete position
-    pos.qty -= form.qty;
-    pos.updated_at = Utc::now().timestamp();
+    // update / delete position
+    p.qty -= qty;
+    p.updated_at = Utc::now().timestamp();
 
-    if pos.qty <= 0 {
-        if let Err(e) = delete_position(&state, pos.id).await {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response();
+    if p.qty <= 0 {
+        if let Err(e) = positions
+            .delete_one(doc! { "user_id": u.id, "symbol": &sym }, None)
+            .await
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("db error: {e}")),
+            )
+                .into_response();
         }
-    } else if let Err(e) = upsert_position(&state, &pos).await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response();
+    } else {
+        if let Err(e) = positions
+            .update_one(
+                doc! { "user_id": u.id, "symbol": &sym },
+                doc! { "$set": { "qty": p.qty, "updated_at": p.updated_at } },
+                None,
+            )
+            .await
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("db error: {e}")),
+            )
+                .into_response();
+        }
     }
 
-    let msg = format!(
-        r#"<div class="alert alert-success mb-2">Sold <b>{}</b> shares of <b>{}</b> @ <b>${}</b></div>"#,
-        form.qty,
-        sym,
-        fmt2(price)
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "HX-Trigger",
+        hx_trigger_value(&["cashUpdated", "positionUpdated"]),
     );
 
-    let res = (StatusCode::OK, Html(msg)).into_response();
-    htmx_trigger(res, r#"{"positionUpdated":true}"#)
+    (
+        StatusCode::OK,
+        headers,
+        Html(r#"<div class="text-success">Sell successful.</div>"#.to_string()),
+    )
+        .into_response()
 }
 
 #[derive(Deserialize)]
 pub struct CreateAlertForm {
     #[serde(rename = "targetPrice")]
-    pub target_price: f64,
+    pub target_price: String,
     pub condition: String,
 }
 
@@ -370,20 +526,32 @@ pub async fn get_alerts_list(
     user: Option<Extension<CurrentUser>>,
 ) -> Response {
     let Some(Extension(u)) = user else {
-        return (StatusCode::OK, Html(r#"<div class="text-muted small">Log in to manage alerts.</div>"#.to_string())).into_response();
+        return (
+            StatusCode::OK,
+            Html(r#"<div class="text-muted small">Log in to manage alerts.</div>"#.to_string()),
+        )
+            .into_response();
     };
 
     let sym = symbol.to_uppercase();
     let alerts = state.db.collection::<Alert>("alerts");
 
-    let find_opts = FindOptions::builder().sort(doc! { "created_at": -1 }).build();
+    let find_opts = FindOptions::builder()
+        .sort(doc! { "created_at": -1 })
+        .build();
 
     let mut cursor = match alerts
         .find(doc! { "user_id": u.id, "symbol": &sym }, find_opts)
         .await
     {
         Ok(c) => c,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!("db error: {e}")),
+            )
+                .into_response();
+        }
     };
 
     let mut items: Vec<serde_json::Value> = Vec::new();
@@ -391,14 +559,21 @@ pub async fn get_alerts_list(
         match res {
             Ok(a) => {
                 items.push(json!({
-                    "id": a.id.to_hex(),
-                    "symbol": a.symbol,
-                    "condition": a.condition,
-                    "target_price": fmt2(a.target_price),
-                    "triggered": a.triggered,
+                  "id": a.id.to_hex(),
+                  "symbol": a.symbol,
+                  "condition": a.condition,
+                  "target_price": fmt2(a.target_price),
+                  "target_price_raw": a.target_price,
+                  "triggered": a.triggered,
                 }));
             }
-            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response(),
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Html(format!("db error: {e}")),
+                )
+                    .into_response();
+            }
         }
     }
 
@@ -415,7 +590,6 @@ pub async fn get_alerts_list(
     (StatusCode::OK, Html(html)).into_response()
 }
 
-// POST /alerts/:symbol
 pub async fn post_create_alert(
     State(state): State<AppState>,
     Path(symbol): Path<String>,
@@ -423,88 +597,170 @@ pub async fn post_create_alert(
     Form(form): Form<CreateAlertForm>,
 ) -> Response {
     let Some(Extension(u)) = user else {
-        return (StatusCode::UNAUTHORIZED, Html("Please log in.".to_string())).into_response();
+        return unauthorized_snippet();
     };
 
     let sym = symbol.to_uppercase();
 
     let cond = form.condition.to_lowercase();
     if cond != "above" && cond != "below" {
-        return (StatusCode::BAD_REQUEST, Html("Invalid condition".to_string())).into_response();
+        return (
+            StatusCode::OK,
+            Html(r#"<div class="text-danger">Please choose a valid condition.</div>"#.to_string()),
+        )
+            .into_response();
     }
-    if !form.target_price.is_finite() || form.target_price <= 0.0 {
-        return (StatusCode::BAD_REQUEST, Html("Target price must be > 0".to_string())).into_response();
+
+    let target_str = form.target_price.trim();
+    let target: f64 = match target_str.parse() {
+        Ok(v) => v,
+        Err(_) => {
+            return (
+                StatusCode::OK,
+                Html(
+                    r#"<div class="text-danger">Please enter a valid target price.</div>"#
+                        .to_string(),
+                ),
+            )
+                .into_response();
+        }
+    };
+
+    if !target.is_finite() || target <= 0.0 {
+        return (
+            StatusCode::OK,
+            Html(
+                r#"<div class="text-danger">Please enter a valid target price.</div>"#.to_string(),
+            ),
+        )
+            .into_response();
     }
+
+    let alerts = state.db.collection::<Alert>("alerts");
+    let now = Utc::now().timestamp();
 
     let alert = Alert {
         id: ObjectId::new(),
         user_id: u.id,
-        symbol: sym.clone(),
+        symbol: sym,
         condition: cond,
-        target_price: form.target_price,
-        created_at: Utc::now().timestamp(),
+        target_price: target,
+        created_at: now,
         triggered: false,
         triggered_at: None,
     };
 
-    let alerts = state.db.collection::<Alert>("alerts");
-    if let Err(e) = alerts.insert_one(&alert, None).await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response();
+    if let Err(e) = alerts.insert_one(alert, None).await {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(format!("db error: {e}")),
+        )
+            .into_response();
     }
 
-    let msg = Html(r#"<div class="alert alert-success mb-2">Alert created.</div>"#.to_string());
-    let res = (StatusCode::OK, msg).into_response();
-    htmx_trigger(res, r#"{"alertsUpdated":true}"#)
+    let mut headers = HeaderMap::new();
+    headers.insert("HX-Trigger", hx_trigger_value(&["alertsUpdated"]));
+
+    (
+        StatusCode::OK,
+        headers,
+        Html(r#"<div class="text-success">Alert created.</div>"#.to_string()),
+    )
+        .into_response()
 }
 
-// POST /alerts/:symbol/:id/delete
 pub async fn post_delete_alert(
     State(state): State<AppState>,
-    Path((symbol, id)): Path<(String, String)>,
+    Path(symbol): Path<String>,
     user: Option<Extension<CurrentUser>>,
 ) -> Response {
     let Some(Extension(u)) = user else {
-        return (StatusCode::UNAUTHORIZED, Html("Please log in.".to_string())).into_response();
+        return unauthorized_snippet();
     };
 
     let sym = symbol.to_uppercase();
-    let oid = match ObjectId::parse_str(&id) {
-        Ok(x) => x,
-        Err(_) => return (StatusCode::BAD_REQUEST, Html("Invalid id".to_string())).into_response(),
-    };
-
     let alerts = state.db.collection::<Alert>("alerts");
+
     if let Err(e) = alerts
-        .delete_one(doc! { "_id": oid, "user_id": u.id, "symbol": &sym }, None)
+        .delete_many(doc! { "user_id": u.id, "symbol": &sym }, None)
         .await
     {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(format!("db error: {e}")),
+        )
+            .into_response();
     }
 
-    let res = (StatusCode::OK, Html(r#"<div class="alert alert-success mb-2">Alert deleted.</div>"#.to_string())).into_response();
-    htmx_trigger(res, r#"{"alertsUpdated":true}"#)
+    let mut headers = HeaderMap::new();
+    headers.insert("HX-Trigger", hx_trigger_value(&["alertsUpdated"]));
+
+    (StatusCode::OK, headers, Html("".to_string())).into_response()
 }
 
-// POST /alerts/by-id/:id/delete  (for pages that don't have symbol handy)
 pub async fn post_delete_alert_global(
     State(state): State<AppState>,
     Path(id): Path<String>,
     user: Option<Extension<CurrentUser>>,
 ) -> Response {
     let Some(Extension(u)) = user else {
-        return (StatusCode::UNAUTHORIZED, Html("Please log in.".to_string())).into_response();
+        return unauthorized_snippet();
     };
 
     let oid = match ObjectId::parse_str(&id) {
         Ok(x) => x,
-        Err(_) => return (StatusCode::BAD_REQUEST, Html("Invalid id".to_string())).into_response(),
+        Err(_) => return (StatusCode::BAD_REQUEST, Html("bad id".to_string())).into_response(),
     };
 
     let alerts = state.db.collection::<Alert>("alerts");
-    if let Err(e) = alerts.delete_one(doc! { "_id": oid, "user_id": u.id }, None).await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Html(format!("db error: {e}"))).into_response();
+
+    if let Err(e) = alerts
+        .delete_one(doc! { "_id": oid, "user_id": u.id }, None)
+        .await
+    {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(format!("db error: {e}")),
+        )
+            .into_response();
     }
 
-    let res = (StatusCode::OK, Html(r#"<div class="alert alert-success mb-2">Alert deleted.</div>"#.to_string())).into_response();
-    htmx_trigger(res, r#"{"alertsUpdated":true}"#)
+    let mut headers = HeaderMap::new();
+    headers.insert("HX-Trigger", hx_trigger_value(&["alertsUpdated"]));
+
+    (StatusCode::OK, headers, Html("".to_string())).into_response()
+}
+
+pub async fn post_trigger_alert(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    user: Option<Extension<CurrentUser>>,
+) -> Response {
+    let Some(Extension(u)) = user else {
+        return unauthorized_snippet();
+    };
+
+    let oid = match ObjectId::parse_str(&id) {
+        Ok(x) => x,
+        Err(_) => return (StatusCode::BAD_REQUEST, Html("bad id".to_string())).into_response(),
+    };
+
+    let alerts = state.db.collection::<Alert>("alerts");
+
+    // delete alert after trigger
+    if let Err(e) = alerts
+        .delete_one(doc! { "_id": oid, "user_id": u.id }, None)
+        .await
+    {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(format!("db error: {e}")),
+        )
+            .into_response();
+    }
+
+    let mut headers = HeaderMap::new();
+    headers.insert("HX-Trigger", hx_trigger_value(&["alertsUpdated"]));
+
+    (StatusCode::OK, headers, Html("".to_string())).into_response()
 }

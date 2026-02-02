@@ -14,7 +14,11 @@
 	<body class="min-vh-100 d-flex flex-column">
 		{{> navbar}}
 
-		<main id="app" class="flex-grow-1 d-flex p-0">
+		<main
+			id="app"
+			class="flex-grow-1 d-flex p-0"
+			{{#if initial_path}}hx-get="{{initial_path}}" hx-trigger="load" hx-swap="innerHTML"{{/if}}
+		>
 			{{{body}}}
 		</main>
 
@@ -57,5 +61,6 @@
 		></script>
 		<script defer src="/static/js/chartData.js"></script>
 		<script defer src="/static/js/homeWidgets.js"></script>
+		<script defer src="/static/js/alertsRealtime.js"></script>
 	</body>
 </html>

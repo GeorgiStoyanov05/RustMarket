@@ -225,7 +225,16 @@
 						series.update(lastBar);
 					}
 				}
-				if (lastTradePrice != null) schedulePosUpdate();
+
+				// ✅ NEW: broadcast latest trade price to other components (alerts, etc.)
+				if (lastTradePrice != null) {
+					document.dispatchEvent(
+						new CustomEvent("rm:tradePrice", {
+							detail: { symbol, price: lastTradePrice },
+						})
+					);
+					schedulePosUpdate();
+				}
 			};
 
 			ws.onclose = () => {

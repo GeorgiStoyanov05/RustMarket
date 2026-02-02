@@ -6,10 +6,25 @@
 {{#if has_alerts}}
   <ul class="list-group list-group-flush">
     {{#each alerts}}
-      <li class="list-group-item d-flex align-items-center justify-content-between py-2">
-        <div class="small">
-          {{#if (eq condition "above")}}Above{{else}}Below{{/if}}
-          <span class="fw-semibold">${{target_price}}</span>
+      <li
+        class="list-group-item d-flex align-items-center justify-content-between py-2"
+        data-alert-item="1"
+        data-alert-id="{{id}}"
+        data-condition="{{condition}}"
+        data-target="{{target_price_raw}}"
+        data-triggered="{{#if triggered}}1{{else}}0{{/if}}"
+      >
+        <div class="small d-flex align-items-center gap-2">
+          {{#if triggered}}
+            <span class="badge text-bg-warning">Triggered</span>
+          {{else}}
+            <span class="badge text-bg-success">Active</span>
+          {{/if}}
+
+          <span>
+            {{#if (eq condition "above")}}Above{{else}}Below{{/if}}
+            <span class="fw-semibold">${{target_price}}</span>
+          </span>
         </div>
 
         <button
