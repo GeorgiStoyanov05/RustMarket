@@ -37,3 +37,37 @@ pub fn render_shell(
         .render("layouts/base", &ctx)
         .map_err(|e| e.to_string())
 }
+
+/// Render a full page (shell + body) for non-HTMX navigation.
+///
+/// This matches the legacy handlers' `render_full` behavior.
+pub fn render_full(
+    state: &AppState,
+    title: &str,
+    body_html: String,
+    user: Option<&CurrentUser>,
+) -> Result<String, String> {
+    let (is_logged_in, user_json) = match user {
+        Some(u) => (
+            true,
+            json!({
+                "id": u.id.to_hex(),
+                "email": u.email,
+                "username": u.username,
+            }),
+        ),
+        None => (false, serde_json::Value::Null),
+    };
+
+    let ctx = json!({
+        "title": title,
+        "body": body_html,
+        "is_logged_in": is_logged_in,
+        "user": user_json,
+    });
+
+    state
+        .hbs
+        .render("layouts/base", &ctx)
+        .map_err(|e| e.to_string())
+}

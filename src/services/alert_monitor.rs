@@ -1,11 +1,8 @@
-use std::{collections::HashMap, time::Duration};
-
-use chrono::Utc;
-use futures_util::StreamExt;
 use mongodb::bson::doc;
+use std::time::Duration;
 use tokio::time;
 
-use crate::{models::Alert, AppState};
+use crate::{AppState, models::Alert};
 
 pub fn spawn_price_alert_monitor(state: AppState) {
     tokio::spawn(async move {

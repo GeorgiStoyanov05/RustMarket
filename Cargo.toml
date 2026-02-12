@@ -22,3 +22,11 @@ jsonwebtoken = "9"
 chrono = "0.4"
 bcrypt = "0.15"
 regex = "1"
+
+[lib]
+name = "rustmarket"
+path = "src/lib.rs"
+
+[dev-dependencies]
+tower = "0.5"
+http-body-util = "0.1"

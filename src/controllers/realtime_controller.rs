@@ -1,17 +1,20 @@
+use std::{convert::Infallible, time::Duration as StdDuration};
+
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Query, State,
+        Query, State, Extension,
     },
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, sse::{Event, KeepAlive, Sse}},
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
-use tokio::time::{interval, Duration};
+use tokio::time::{interval, Duration as TokioDuration};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message as TMessage};
+use tokio::sync::broadcast::error::RecvError;
 
-use crate::AppState;
+use crate::{models::CurrentUser, AppState};
 
 #[derive(Deserialize)]
 pub struct TradesWsQuery {
@@ -42,7 +45,6 @@ pub async fn ws_trades(
 }
 
 async fn handle_trades_socket(mut client_ws: WebSocket, symbol: String, token: String) {
-    // IMPORTANT: add the "/" before ?token=  (prevents 400 in some WS stacks)
     let url = format!("wss://ws.finnhub.io/?token={}", token);
 
     tracing::info!("WS client connected: symbol={}", symbol);
@@ -54,7 +56,7 @@ async fn handle_trades_socket(mut client_ws: WebSocket, symbol: String, token: S
             tracing::error!("Finnhub WS connect failed: {}", err);
             let _ = client_ws
                 .send(Message::Text(format!(
-                    r#"{{"type":"error","message":"Finnhub WS connect failed: {}"}}"#,
+                    r#"{{\"type\":\"error\",\"message\":\"Finnhub WS connect failed: {}\"}}"#,
                     err
                 )))
                 .await;
@@ -67,12 +69,10 @@ async fn handle_trades_socket(mut client_ws: WebSocket, symbol: String, token: S
 
     let (mut fh_write, mut fh_read) = fh_ws.split();
 
-    // Subscribe to symbol
     let sub = serde_json::json!({ "type": "subscribe", "symbol": symbol });
     let _ = fh_write.send(TMessage::Text(sub.to_string())).await;
 
-    // Ping browser to keep alive
-    let mut ping = interval(Duration::from_secs(25));
+    let mut ping = interval(TokioDuration::from_secs(25));
 
     loop {
         tokio::select! {
@@ -85,7 +85,6 @@ async fn handle_trades_socket(mut client_ws: WebSocket, symbol: String, token: S
             fh_msg = fh_read.next() => {
                 match fh_msg {
                     Some(Ok(TMessage::Text(txt))) => {
-                        // forward EVERYTHING (including Finnhub errors)
                         if client_ws.send(Message::Text(txt)).await.is_err() {
                             break;
                         }
@@ -152,7 +151,6 @@ pub async fn ws_trades_multi(
         return (StatusCode::BAD_REQUEST, "missing symbols").into_response();
     }
 
-    // avoid absurd loads
     if syms.len() > 50 {
         syms.truncate(50);
     }
@@ -172,7 +170,7 @@ async fn handle_trades_multi_socket(mut client_ws: WebSocket, symbols: Vec<Strin
             tracing::error!("Finnhub WS connect failed: {}", err);
             let _ = client_ws
                 .send(Message::Text(format!(
-                    r#"{{"type":"error","message":"Finnhub WS connect failed: {}"}}"#,
+                    r#"{{\"type\":\"error\",\"message\":\"Finnhub WS connect failed: {}\"}}"#,
                     err
                 )))
                 .await;
@@ -183,14 +181,12 @@ async fn handle_trades_multi_socket(mut client_ws: WebSocket, symbols: Vec<Strin
 
     let (mut fh_write, mut fh_read) = fh_ws.split();
 
-    // Subscribe to all symbols
     for s in &symbols {
         let sub = serde_json::json!({ "type": "subscribe", "symbol": s });
         let _ = fh_write.send(TMessage::Text(sub.to_string())).await;
     }
 
-    // Ping browser to keep alive
-    let mut ping = interval(Duration::from_secs(25));
+    let mut ping = interval(TokioDuration::from_secs(25));
 
     loop {
         tokio::select! {
@@ -233,4 +229,28 @@ async fn handle_trades_multi_socket(mut client_ws: WebSocket, symbols: Vec<Strin
     }
 
     let _ = client_ws.close().await;
+}
+
+// GET /events  (SSE)
+pub async fn sse_events(
+    State(state): State<AppState>,
+    Extension(_u): Extension<CurrentUser>,
+) -> Sse<impl futures_util::stream::Stream<Item = Result<Event, Infallible>>> {
+    let rx = state.events_tx.subscribe();
+
+    let stream = futures_util::stream::unfold(rx, |mut rx| async {
+        let evt = match rx.recv().await {
+            Ok(name) => Event::default().event(name).data("1"),
+            Err(RecvError::Lagged(_)) => Event::default().event("ping").data("lagged"),
+            Err(RecvError::Closed) => Event::default().event("ping").data("closed"),
+        };
+
+        Some((Ok(evt), rx))
+    });
+
+    Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(StdDuration::from_secs(20))
+            .text("keep-alive"),
+    )
 }
