@@ -9,13 +9,11 @@ pub struct Alert {
     pub user_id: ObjectId,
     pub symbol: String,
 
-    // "above" | "below"
     pub condition: String,
     pub target_price: f64,
 
     pub created_at: i64,
 
-    // reserved for later
     pub triggered: bool,
     pub triggered_at: Option<i64>,
 }

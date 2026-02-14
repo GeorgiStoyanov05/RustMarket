@@ -2,10 +2,6 @@ use serde_json::json;
 
 use crate::{models::CurrentUser, AppState};
 
-/// Render the application "shell" (navbar + footer) and let HTMX load the page body.
-///
-/// This matches the Go project's behavior where a normal navigation returns the shell
-/// and then `#app` performs an HTMX GET to load the actual page content.
 pub fn render_shell(
     state: &AppState,
     initial_path: &str,
@@ -38,9 +34,6 @@ pub fn render_shell(
         .map_err(|e| e.to_string())
 }
 
-/// Render a full page (shell + body) for non-HTMX navigation.
-///
-/// This matches the legacy handlers' `render_full` behavior.
 pub fn render_full(
     state: &AppState,
     title: &str,

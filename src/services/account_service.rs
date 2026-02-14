@@ -3,7 +3,6 @@ use mongodb::bson::{doc, oid::ObjectId};
 
 use crate::{models::Account, AppState};
 
-/// Gets the user's account document. If missing, creates it with the default starting balance.
 pub async fn get_or_create_account(state: &AppState, user_id: ObjectId) -> Result<Account, String> {
     let accounts = state.db.collection::<Account>("accounts");
 

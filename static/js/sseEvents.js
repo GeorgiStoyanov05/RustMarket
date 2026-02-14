@@ -21,7 +21,6 @@
 
     es.onerror = () => {
       try { es.close(); } catch {}
-      // reconnect
       setTimeout(connect, 1500);
     };
   }

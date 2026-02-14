@@ -87,7 +87,6 @@ pub async fn register_user(
 
     let users = state.db.collection::<User>("users");
 
-    // unique email
     match users.find_one(doc! { "email": email }, None).await {
         Ok(Some(_)) => {
             errs.insert("email".into(), "Email has already been taken!".into());
@@ -100,7 +99,6 @@ pub async fn register_user(
         }
     }
 
-    // unique username
     match users.find_one(doc! { "username": username }, None).await {
         Ok(Some(_)) => {
             errs.insert("username".into(), "Username has already been taken!".into());

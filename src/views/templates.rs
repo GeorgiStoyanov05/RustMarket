@@ -39,12 +39,11 @@ pub fn build_handlebars() -> Hbs {
     register_file(&mut hb, "partials/position_panel", "templates/partials/position_panel.hbs");
     register_file(&mut hb, "partials/portfolio_positions", "templates/partials/portfolio_positions.hbs");
 
-    // ✅ NEW
     register_file(&mut hb, "partials/portfolio_position_card", "templates/partials/portfolio_position_card.hbs");
 
     register_file(&mut hb, "partials/funds_modal", "templates/partials/funds_modal.hbs");
     register_file(&mut hb, "partials/cash_badge", "templates/partials/cash_badge.hbs");
-    // Settings
+
     register_file(&mut hb, "partials/change_email", "templates/partials/change_email.hbs");
     register_file(&mut hb, "partials/change_password", "templates/partials/change_password.hbs");
     register_file(&mut hb, "partials/orders_list", "templates/partials/orders_list.hbs");

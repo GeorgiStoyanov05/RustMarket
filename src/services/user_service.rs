@@ -11,7 +11,6 @@ pub async fn change_email(state: &AppState, user_id: ObjectId, new_email: &str) 
 
     let users = state.db.collection::<User>("users");
 
-    // Attempt update; handle duplicate key errors nicely.
     if let Err(e) = users
         .update_one(doc! { "_id": user_id }, doc! { "$set": { "email": new_email } }, None)
         .await
@@ -33,7 +32,6 @@ pub async fn change_password(state: &AppState, user_id: ObjectId, new_password: 
 
     let users = state.db.collection::<User>("users");
 
-    // load current hash so we can prevent re-using the same password
     let db_user = match users.find_one(doc! { "_id": user_id }, None).await {
         Ok(Some(u)) => u,
         _ => {

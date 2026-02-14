@@ -41,7 +41,7 @@
 		const container = document.getElementById("portfolioPositions");
 		const card = document.getElementById(`pos-${sym}`);
 
-		// If the card exists, refresh only it (outerHTML swap)
+		// If the card exists, refresh only it
 		if (card) {
 			htmx.ajax("GET", `/portfolio/position/${encodeURIComponent(sym)}`, {
 				target: card,
@@ -61,7 +61,7 @@
 			return;
 		}
 
-		// If we don't have that card but we're on portfolio, reload the list (e.g., new position created)
+		// If we don't have that card but we're on portfolio, reload the list
 		if (container) {
 			htmx.ajax("GET", "/portfolio/positions", {
 				target: "#portfolioPositions",

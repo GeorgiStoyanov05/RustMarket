@@ -2,12 +2,6 @@ use serde_json::json;
 
 use crate::{AppState};
 
-/// Build the context used by the `partials/search_results` template.
-///
-/// This mirrors the behavior implemented directly in the controller:
-/// - empty query => no results, no error
-/// - non-empty query => call Finnhub search, filter empty symbols, limit 10
-/// - Finnhub failure => generic error string
 pub async fn search_results_ctx(state: &AppState, query: &str) -> serde_json::Value {
     let q = query.trim().to_string();
 
@@ -56,7 +50,6 @@ pub async fn search_results_ctx(state: &AppState, query: &str) -> serde_json::Va
     }
 }
 
-/// Build the context used by the `partials/quote` template.
 pub async fn quote_ctx(state: &AppState, symbol: &str) -> serde_json::Value {
     match state.finnhub.quote(symbol).await {
         Ok(q) => json!({ "quote": q, "error": serde_json::Value::Null }),

@@ -324,7 +324,6 @@ pub async fn get_funds_page(
         return (StatusCode::OK, Html(html)).into_response();
     }
 
-    // direct navigation to /funds returns the shell + auto-opens the modal.
     let user_ref = user.as_ref().map(|Extension(u)| u);
     match render::render_shell(&state, "/", user_ref, true) {
         Ok(page) => (StatusCode::OK, Html(page)).into_response(),

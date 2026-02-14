@@ -15,7 +15,6 @@ pub struct Settings {
 
 
 pub fn load() -> Settings {
-    // Loads .env if present (no crash if missing)
     dotenvy::dotenv().ok();
 
     let mongodb_uri = env::var("MONGODB_URI")

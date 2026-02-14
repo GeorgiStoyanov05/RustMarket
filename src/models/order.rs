@@ -6,10 +6,10 @@ pub struct Order {
     #[serde(rename = "_id")]
     pub id: ObjectId,
     pub user_id: ObjectId,
-    pub symbol: String,       // "AAPL"
-    pub side: String,         // "buy" or "sell"
+    pub symbol: String,
+    pub side: String,
     pub qty: i64,
     pub price: f64,
     pub total: f64,
-    pub created_at: i64,      // unix timestamp
+    pub created_at: i64,
 }

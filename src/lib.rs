@@ -1,13 +1,5 @@
-//! Library entrypoint for RustMarket.
-//!
-//! This file exists mainly to make controller tests easy (integration tests
-//! under `tests/` can import the app state, routers, controllers, services).
-
 pub mod config;
 pub mod models;
-
-// Keep these modules at crate root because the codebase already references
-// them as `crate::auth`, `crate::render`, and `crate::templates`.
 #[path = "middleware/auth.rs"]
 pub mod auth;
 

@@ -100,7 +100,6 @@ pub async fn delete_alert_global(
     Ok(())
 }
 
-/// Returns true if the alert was newly triggered, false if it was already triggered.
 pub async fn trigger_alert(
     state: &AppState,
     user_id: ObjectId,

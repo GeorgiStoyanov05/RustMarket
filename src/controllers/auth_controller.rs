@@ -84,7 +84,6 @@ pub async fn post_login(
         errors.insert("password".into(), json!("Password is required."));
     }
 
-    // if validation fails, render partial
     if !errors.is_empty() {
         let html = state
             .hbs

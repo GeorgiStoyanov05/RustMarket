@@ -1,6 +1,3 @@
-// static/js/alertsRealtime.js
-// Listens to rm:tradePrice events from chartData.js and triggers alerts when hit.
-
 (function () {
 	const pending = new Set();
 
@@ -39,7 +36,6 @@
 			// Refresh alert lists everywhere
 			if (window.htmx) htmx.trigger(document.body, "alertsUpdated");
 		} catch (e) {
-			// ignore
 		} finally {
 			pending.delete(id);
 		}

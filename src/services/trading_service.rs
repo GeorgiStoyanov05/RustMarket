@@ -275,7 +275,6 @@ pub async fn market_sell(state: &AppState, user_id: ObjectId, symbol: &str, qty:
     };
     let _ = orders.insert_one(order, None).await;
 
-    // broadcast so other tabs/pages update
     let _ = state.events_tx.send("ordersUpdated".to_string());
     let _ = state.events_tx.send("positionUpdated".to_string());
     let _ = state.events_tx.send("cashUpdated".to_string());

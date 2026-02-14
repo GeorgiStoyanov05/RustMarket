@@ -26,13 +26,11 @@ async fn run_tick(state: &AppState) -> Result<(), String> {
 
     let alerts = state.db.collection::<Alert>("alerts");
 
-    // 1) Fetch all untriggered alerts
     let mut cursor = alerts
         .find(doc! { "triggered": false }, None)
         .await
         .map_err(|e| e.to_string())?;
 
-    // 2) Group by symbol => only 1 quote request per symbol per tick
     let mut by_symbol: HashMap<String, Vec<Alert>> = HashMap::new();
     while let Some(item) = cursor.next().await {
         let a = item.map_err(|e| e.to_string())?;
@@ -46,11 +44,10 @@ async fn run_tick(state: &AppState) -> Result<(), String> {
     let mut triggered_any = false;
     let now = chrono::Utc::now().timestamp();
 
-    // 3) Check each symbol once
     for (sym, group) in by_symbol {
         let quote = match state.finnhub.quote(&sym).await {
             Ok(q) => q,
-            Err(_) => continue, // ignore symbol if API fails this tick
+            Err(_) => continue,
         };
 
         let price = quote.c;
@@ -58,7 +55,6 @@ async fn run_tick(state: &AppState) -> Result<(), String> {
             continue;
         }
 
-        // 4) Trigger matching alerts
         for a in group {
             let hit = (a.condition == "above" && price >= a.target_price)
                 || (a.condition == "below" && price <= a.target_price);
@@ -81,7 +77,6 @@ async fn run_tick(state: &AppState) -> Result<(), String> {
         }
     }
 
-    // 5) Notify all open pages/tabs to refresh alerts UI
     if triggered_any {
         let _ = state.events_tx.send("alertsUpdated".to_string());
     }
